@@ -1,6 +1,7 @@
 from __future__ import division
 from __future__ import print_function
 
+import gurobipy as gp
 import os
 import glob
 import time
@@ -63,8 +64,12 @@ def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient
     # Get the start time
     begin_time = time.time()
 
+
     # Define the solver model
-    model = Model("Gurobi")
+    env = gp.Env(params={
+    })
+
+    model = gp.Model("Gurobi", env=env)
     model.feasRelaxS(0,False,False,True)
 
     # Set up variable mappings
@@ -239,7 +244,7 @@ def cross(n, m, k, site, value, constraint, constraint_type, coefficient, obj_ty
 
 # Testing settings
 begin_time = time.time()
-set_time = 57950
+set_time = 500
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False, help='Disables CUDA training.')
 parser.add_argument('--seed', type=int, default=32, help='Random seed.')
@@ -251,7 +256,7 @@ parser.add_argument('--model', type=str, default="./86.pkl", help='EGAT Model.')
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 random.seed(args.seed)
 np.random.seed(args.seed)
@@ -411,7 +416,7 @@ for i in range(vertex_num):
         partition_var[now_site].append(now_vertex - n)
 
 print(color)
-print(len(partition_var[0]), len(partition_var[1]), len(partition_var[2]), len(partition_var[3]))
+# print(len(partition_var[0]), len(partition_var[1]), len(partition_var[2]), len(partition_var[3]))
 color_site_to_num = []
 num_to_color_site = []
 color_site_num = []

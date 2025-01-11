@@ -50,7 +50,7 @@ class SpGraphAttentionLayer(nn.Module):
         self.special_spmm = SpecialSpmm()
 
     def forward(self, node, edge, edge_feature):
-        dv = 'cuda:2' if node.is_cuda else 'cpu'
+        dv = 'cuda:0' if node.is_cuda else 'cpu'
         #dv = 'cpu'
         N = node.size()[0]
         edge = edge.t()

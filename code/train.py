@@ -59,14 +59,14 @@ args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 print(torch.cuda.is_available())
 
-device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #device = torch.device("cpu")
 
 random.seed(args.seed)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 
-data_num = 20
+data_num = 50
 data_features = []
 data_labels = []
 data_solution = []

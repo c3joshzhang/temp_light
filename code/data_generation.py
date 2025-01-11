@@ -376,7 +376,7 @@ def parse_args():
     parser.add_argument("--problem_type", choices = ['IS', 'MVC', 'SC', 'MIKS'], default = 'SC', help = "Problem type selection")
     parser.add_argument("--difficulty_mode", choices = ['easy', 'medium', 'hard', 'ultra'], default = 'easy', help = "Difficulty level.")
     parser.add_argument('--seed', type = int, default = 0, help = 'Random generator seed.')
-    parser.add_argument("--number", type = int, default = 10, help = 'The number of instances.')
+    parser.add_argument("--number", type = int, default = 50, help = 'The number of instances.')
     return parser.parse_args()
 
 if __name__ == '__main__':

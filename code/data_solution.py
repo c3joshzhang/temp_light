@@ -1,4 +1,5 @@
 from gurobipy import *
+import gurobipy as gp
 import numpy as np
 import argparse
 import pickle
@@ -31,7 +32,10 @@ def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient
     # Get the start time
     begin_time = time.time()
     # Define the optimization model
-    model = Model("Gurobi")
+    env = gp.Env(params={
+    })
+    
+    model = gp.Model("Gurobi", env=env)
     # Define n decision variables x[]
     x = []
     for i in range(n):
@@ -173,7 +177,7 @@ def optimize(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--time', type = int, default = 10, help = 'Running wall-clock time.')
-    parser.add_argument("--number", type = int, default = 10, help = 'The number of instances.')
+    parser.add_argument("--number", type = int, default = 50, help = 'The number of instances.')
     return parser.parse_args()
 
 
