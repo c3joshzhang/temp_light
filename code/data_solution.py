@@ -6,6 +6,7 @@ import pickle
 import random
 import time
 import os
+import json
 
 
 def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient, time_limit, obj_type, lower_bound, upper_bound, value_type):
@@ -32,8 +33,9 @@ def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient
     # Get the start time
     begin_time = time.time()
     # Define the optimization model
-    env = gp.Env(params={
-    })
+    # Define the solver model
+    with open("gb.lic") as f:
+        env = gp.Env(params=json.load(f))
     
     model = gp.Model("Gurobi", env=env)
     # Define n decision variables x[]

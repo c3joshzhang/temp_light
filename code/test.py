@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
+import json
 
 from EGAT_models import SpGAT
 
@@ -66,8 +67,8 @@ def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient
 
 
     # Define the solver model
-    env = gp.Env(params={
-    })
+    with open("gb.lic") as f:
+        env = gp.Env(params=json.load(f))
 
     model = gp.Model("Gurobi", env=env)
     model.feasRelaxS(0,False,False,True)
@@ -244,14 +245,14 @@ def cross(n, m, k, site, value, constraint, constraint_type, coefficient, obj_ty
 
 # Testing settings
 begin_time = time.time()
-set_time = 500
+set_time = 3600
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False, help='Disables CUDA training.')
 parser.add_argument('--seed', type=int, default=32, help='Random seed.')
 parser.add_argument('--num', type=int, default=0, help='Test instance num.')
 parser.add_argument('--variable_rate', type=float, default=0.3, help='Decision variable dimensionality reduction.')
 parser.add_argument('--constraint_rate', type=float, default=0.2, help='Constraint dimensionality reduction.')
-parser.add_argument('--model', type=str, default="./86.pkl", help='EGAT Model.')
+parser.add_argument('--model', type=str, default="./0.pkl", help='EGAT Model.')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
