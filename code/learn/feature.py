@@ -21,7 +21,10 @@ class VarFeature:
     def from_info(cls, v_info: VarInfo, o_info: ObjInfo):
         values = []
         for i in range(v_info.n):
-            v = [o_info.ks.get(i, 0), 0, 1]
+            v = [o_info.ks.get(i, 0)]
+            # [is_constraint, is_variable]
+            v.extend([0, 1])
+            v.extend([v_info.lbs[i], v_info.ubs[i]])
             v.extend(cls._type_encode(v_info.types[i]))
             values.append(v)
         return cls(values)
@@ -52,7 +55,10 @@ class ConFeature:
     def from_info(cls, info: ConInfo):
         values = []
         for i in range(info.n):
-            v = [info.rhs[i]] + cls._type_encode(info.types[i])
+            v = [info.rhs[i]]
+            # [is_constraint, is_variable]
+            v.extend([1, 0])
+            v.extend(cls._type_encode(info.types[i]))
             values.append(v)
         return cls(values)
 
@@ -61,6 +67,10 @@ class ConFeature:
         encode = [0, 0, 0]
         encode[type_int - 1] = 1
         return encode
+
+
+# TODO: use presolve and relax to collect more features
+class PreFeature: ...
 
 
 class EdgFeature:
@@ -76,16 +86,16 @@ class EdgFeature:
 
     @property
     def values(self):
-        return self._val
+        return self._vals
 
     @classmethod
     def from_info(cls, info: ConInfo):
-        srcs = []
-        dsts = []
+        con_srcs = []
+        var_dsts = []
         vals = []
         for i in range(info.n):
             for j, n in enumerate(info.lhs_p[i]):
-                srcs.append(i)
-                dsts.append(n)
+                con_srcs.append(i)
+                var_dsts.append(n)
                 vals.append(info.lhs_c[i][j])
-        return cls(srcs, dsts, vals)
+        return cls(con_srcs, var_dsts, vals)

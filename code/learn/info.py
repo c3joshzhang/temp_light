@@ -11,6 +11,13 @@ class VarInfo:
         self.ubs = ubs
         self.types = types
 
+    def __repr__(self):
+        info_str = []
+        for i in range(self.n):
+            info_str.append((self.lbs[i], self.ubs[i], self.types[i]))
+        info_str = ", ".join(str(v) for v in info_str)
+        return f"[{info_str}]"
+
     @property
     def n(self):
         return len(self.lbs)
@@ -27,6 +34,20 @@ class ConInfo:
         self.rhs = rhs
         self.types = types
 
+    def __repr__(self):
+        info_str = []
+        for i in range(self.n):
+            info_str.append(
+                (
+                    self.lhs_p[i],
+                    self.lhs_c[i],
+                    self.OP_TO_ENUM[self.types[i]],
+                    self.rhs[i],
+                )
+            )
+        info_str = ", ".join(str(v) for v in info_str)
+        return f"[{info_str}]"
+
     @property
     def n(self):
         return len(self.rhs)
@@ -38,12 +59,18 @@ class ObjInfo:
         self.ks = ks
         self.sense = sense
 
+    def __repr__(self):
+        return f"[{self.ks}, {self.sense}]"
+
 
 class ModelInfo:
     def __init__(self, var_info: VarInfo, con_info: ConInfo, obj_info: ObjInfo):
         self.var_info = var_info
         self.con_info = con_info
         self.obj_info = obj_info
+
+    def __repr__(self):
+        return f"{self.var_info}\n{self.con_info}\n{self.obj_info}"
 
     @property
     def n(self):
