@@ -1,16 +1,31 @@
-from gurobipy import *
-import gurobipy as gp
-import numpy as np
 import argparse
+import json
+import os
 import pickle
 import random
 import time
-import os
-import json
+
+import gurobipy as gp
+import numpy as np
+from gurobipy import *
 
 
-def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient, time_limit, obj_type, lower_bound, upper_bound, value_type):
-    '''
+def Gurobi_solver(
+    n,
+    m,
+    k,
+    site,
+    value,
+    constraint,
+    constraint_type,
+    coefficient,
+    time_limit,
+    obj_type,
+    lower_bound,
+    upper_bound,
+    value_type,
+):
+    """
     Function description:
     Solves a problem instance using the Gurobi solver based on the provided inputs.
 
@@ -28,7 +43,7 @@ def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient
     - lower_bound: lower_bound[i] represents the lower bound of the range for the ith decision variable.
     - upper_bound: upper_bound[i] represents the upper bound of the range for the ith decision variable.
     - value_type: value_type[i] represents the type of the ith decision variable, 'B' indicates a binary variable, 'I' indicates an integer variable, 'C' indicates a continuous variable.
-    '''
+    """
 
     # Get the start time
     begin_time = time.time()
@@ -36,22 +51,28 @@ def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient
     # Define the solver model
     with open("gb.lic") as f:
         env = gp.Env(params=json.load(f))
-    
+
     model = gp.Model("Gurobi", env=env)
     # Define n decision variables x[]
     x = []
     for i in range(n):
-        if(value_type[i] == 'B'):
-            x.append(model.addVar(lb = lower_bound[i], ub = upper_bound[i], vtype = GRB.BINARY))
-        elif(value_type[i] == 'C'):
-            x.append(model.addVar(lb = lower_bound[i], ub = upper_bound[i], vtype = GRB.CONTINUOUS))
+        if value_type[i] == "B":
+            x.append(
+                model.addVar(lb=lower_bound[i], ub=upper_bound[i], vtype=GRB.BINARY)
+            )
+        elif value_type[i] == "C":
+            x.append(
+                model.addVar(lb=lower_bound[i], ub=upper_bound[i], vtype=GRB.CONTINUOUS)
+            )
         else:
-            x.append(model.addVar(lb = lower_bound[i], ub = upper_bound[i], vtype = GRB.INTEGER))
+            x.append(
+                model.addVar(lb=lower_bound[i], ub=upper_bound[i], vtype=GRB.INTEGER)
+            )
     # Set the objective function and optimization goal (maximize/minimize)
     coeff = 0
     for i in range(n):
         coeff += x[i] * coefficient[i]
-    if(obj_type == 'maximize'):
+    if obj_type == "maximize":
         model.setObjective(coeff, GRB.MAXIMIZE)
     else:
         model.setObjective(coeff, GRB.MINIMIZE)
@@ -59,49 +80,48 @@ def Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient
     for i in range(m):
         constr = 0
         for j in range(k[i]):
-            #print(i, j, k[i])
+            # print(i, j, k[i])
             constr += x[site[i][j]] * value[i][j]
-        if(constraint_type[i] == 1):
+        if constraint_type[i] == 1:
             model.addConstr(constr <= constraint[i])
-        elif(constraint_type[i] == 2):
+        elif constraint_type[i] == 2:
             model.addConstr(constr >= constraint[i])
         else:
             model.addConstr(constr == constraint[i])
     # Set the maximum solving time
-    model.setParam('TimeLimit', max(time_limit - (time.time() - begin_time), 0))
+    model.setParam("TimeLimit", max(time_limit - (time.time() - begin_time), 0))
     # Optimize the solution
     model.optimize()
     ans = []
     for i in range(n):
-        if(value_type[i] == 'C'):
+        if value_type[i] == "C":
             ans.append(x[i].X)
         else:
             ans.append(int(x[i].X))
     return ans
 
 
-
 def optimize(
     time: int,
     number: int,
 ):
-    '''
+    """
     Function description:
     Designs and calls a specified algorithm and solver to optimize the problem stored in data.pickle in the same directory, based on the provided parameters.
 
     Parameter descriptions:
     - time: Time allotted per instance for Gurobi to find reference solutions.
     - number: Integer type, indicates the number of instances to be generated.
-    '''
+    """
 
     for num in range(number):
         # Check if data.pickle exists; if it doesn't, read it
-        if not os.path.exists('./example/data' + str(num) + '.pickle'):
+        if not os.path.exists("./example/data" + str(num) + ".pickle"):
             print("No input file!")
-            return 
-        with open('./example/data' + str(num) + '.pickle', "rb") as f:
+            return
+        with open("./example/data" + str(num) + ".pickle", "rb") as f:
             data = pickle.load(f)
-    
+
         # n represents the number of decision variables
         # m represents the number of constraints
         # k[i] represents the number of decision variables in the ith constraint
@@ -125,66 +145,89 @@ def optimize(
         upper_bound = data[10]
         value_type = data[11]
         obj_type = data[0]
-        
-        optimal_solution = Gurobi_solver(n, m, k, site, value, constraint, constraint_type, coefficient, time, obj_type, lower_bound, upper_bound, value_type)
 
+        optimal_solution = Gurobi_solver(
+            n,
+            m,
+            k,
+            site,
+            value,
+            constraint,
+            constraint_type,
+            coefficient,
+            time,
+            obj_type,
+            lower_bound,
+            upper_bound,
+            value_type,
+        )
 
         # Bipartite graph encoding
         variable_features = []
         constraint_features = []
-        edge_indices = [[], []] 
+        edge_indices = [[], []]
         edge_features = []
 
-        #print(value_type)
+        # print(value_type)
         for i in range(n):
             now_variable_features = []
             now_variable_features.append(coefficient[i])
             now_variable_features.append(0)
             now_variable_features.append(1)
-            if(value_type[i] == 'C'):
+            if value_type[i] == "C":
                 now_variable_features.append(0)
             else:
                 now_variable_features.append(1)
             now_variable_features.append(random.random())
             variable_features.append(now_variable_features)
-        
+
         for i in range(m):
             now_constraint_features = []
             now_constraint_features.append(constraint[i])
-            if(constraint_type[i] == 1):
+            if constraint_type[i] == 1:
                 now_constraint_features.append(1)
                 now_constraint_features.append(0)
                 now_constraint_features.append(0)
-            if(constraint_type[i] == 2):
+            if constraint_type[i] == 2:
                 now_constraint_features.append(0)
                 now_constraint_features.append(1)
                 now_constraint_features.append(0)
-            if(constraint_type[i] == 3):
+            if constraint_type[i] == 3:
                 now_constraint_features.append(0)
                 now_constraint_features.append(0)
                 now_constraint_features.append(1)
             now_constraint_features.append(random.random())
             constraint_features.append(now_constraint_features)
-        
+
         for i in range(m):
             for j in range(k[i]):
                 edge_indices[0].append(i)
                 edge_indices[1].append(site[i][j])
                 edge_features.append([value[i][j]])
 
-        with open('./example/pair' + str(num) + '.pickle', 'wb') as f:
-                pickle.dump([variable_features, constraint_features, edge_indices, edge_features, optimal_solution], f)
+        with open("./example/pair" + str(num) + ".pickle", "wb") as f:
+            pickle.dump(
+                [
+                    variable_features,
+                    constraint_features,
+                    edge_indices,
+                    edge_features,
+                    optimal_solution,
+                ],
+                f,
+            )
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--time', type = int, default = 10, help = 'Running wall-clock time.')
-    parser.add_argument("--number", type = int, default = 50, help = 'The number of instances.')
+    parser.add_argument("--time", type=int, default=10, help="Running wall-clock time.")
+    parser.add_argument(
+        "--number", type=int, default=50, help="The number of instances."
+    )
     return parser.parse_args()
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
-    #print(vars(args))
+    # print(vars(args))
     optimize(**vars(args))

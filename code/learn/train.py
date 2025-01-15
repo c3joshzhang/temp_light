@@ -114,4 +114,39 @@ class Inst:
         return values
 
 
+def get_train_mask(size, ratio):
+    num_zero = int(round(size * ratio))
+    mask = torch.ones(size, dtype=torch.bool)
+    idx = torch.randperm(size)[:num_zero]
+    mask[idx] = 0
+    return mask
+
+
+def get_solution_mask(pool, ratio):
+    mask = pool.clone()
+    ones_indices = torch.where(mask == 1)[0]
+    num_keep = int(round(len(ones_indices) * ratio))
+
+    if num_keep <= 0:
+        mask[ones_indices] = 0
+        return mask
+
+    if num_keep >= len(ones_indices):
+        return mask
+
+    selected_indices = torch.randperm(len(ones_indices))[:num_keep]
+    keep_indices = ones_indices[selected_indices]
+    mask[ones_indices] = 0
+    mask[keep_indices] = 1
+    return mask
+
+
+def get_mask_node_feature(node_feature, y, mask):
+    node_feature_with_y = torch.hstack([node_feature, y.unsqueeze(1)])
+    mask = torch.cat([mask, torch.zeros(len(y) - len(mask), dtype=torch.bool)])
+    masked = node_feature_with_y.clone()
+    masked[mask, -1] = 0
+    return torch.hstack([masked, mask.unsqueeze(1)]), mask
+
+
 def train(instances, model): ...

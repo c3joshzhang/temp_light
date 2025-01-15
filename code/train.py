@@ -1,12 +1,12 @@
-from __future__ import division
-from __future__ import print_function
+from __future__ import division, print_function
 
-import os
+import argparse
 import glob
-import time
+import os
 import pickle
 import random
-import argparse
+import time
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,6 +15,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 from EGAT_models import SpGAT
+
 
 class Focal_Loss(nn.Module):
     def __init__(self, weight, gamma=2):
@@ -41,26 +42,45 @@ class Focal_Loss(nn.Module):
         one[range(labels.size(0)), labels] = 1
         return one
 
+
 # Training settings
 parser = argparse.ArgumentParser()
-parser.add_argument('--no-cuda', action='store_true', default=False, help='Disables CUDA training.')
-parser.add_argument('--fastmode', action='store_true', default=False, help='Validate during training pass.')
-parser.add_argument('--seed', type=int, default=16, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=30, help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=1e-2, help='Initial learning rate.')
-parser.add_argument('--weight_decay', type=float, default=5e-3, help='Weight decay (L2 loss on parameters).')
-parser.add_argument('--hidden', type=int, default=64, help='Number of hidden units.')
-parser.add_argument('--nb_heads', type=int, default=6, help='Number of head attentions.')
-parser.add_argument('--dropout', type=float, default=0.5, help='Dropout rate (1 - keep probability).')
-parser.add_argument('--alpha', type=float, default=0.2, help='Alpha for the leaky_relu.')
-parser.add_argument('--patience', type=int, default=20, help='Patience')
+parser.add_argument(
+    "--no-cuda", action="store_true", default=False, help="Disables CUDA training."
+)
+parser.add_argument(
+    "--fastmode",
+    action="store_true",
+    default=False,
+    help="Validate during training pass.",
+)
+parser.add_argument("--seed", type=int, default=16, help="Random seed.")
+parser.add_argument("--epochs", type=int, default=30, help="Number of epochs to train.")
+parser.add_argument("--lr", type=float, default=1e-2, help="Initial learning rate.")
+parser.add_argument(
+    "--weight_decay",
+    type=float,
+    default=5e-3,
+    help="Weight decay (L2 loss on parameters).",
+)
+parser.add_argument("--hidden", type=int, default=64, help="Number of hidden units.")
+parser.add_argument(
+    "--nb_heads", type=int, default=6, help="Number of head attentions."
+)
+parser.add_argument(
+    "--dropout", type=float, default=0.5, help="Dropout rate (1 - keep probability)."
+)
+parser.add_argument(
+    "--alpha", type=float, default=0.2, help="Alpha for the leaky_relu."
+)
+parser.add_argument("--patience", type=int, default=20, help="Patience")
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 print(torch.cuda.is_available())
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#device = torch.device("cpu")
+# device = torch.device("cpu")
 
 random.seed(args.seed)
 np.random.seed(args.seed)
@@ -77,10 +97,10 @@ data_edge_B = []
 data_edge_num_B = []
 data_idx_train = []
 for now_data in range(data_num):
-    if not os.path.exists('./data/pair' + str(now_data) + '.pickle'):
+    if not os.path.exists("./data/pair" + str(now_data) + ".pickle"):
         print("No problem file!")
 
-    with open('./data/pair' + str(now_data) + '.pickle', "rb") as f:
+    with open("./data/pair" + str(now_data) + ".pickle", "rb") as f:
         problem = pickle.load(f)
 
     variable_features = problem[0]
@@ -88,10 +108,10 @@ for now_data in range(data_num):
     edge_indices = problem[2]
     edge_feature = problem[3]
     optimal_solution = problem[4]
-    #print(optimal_solution)
-    #edge, features, labels, idx_train = load_data()
+    # print(optimal_solution)
+    # edge, features, labels, idx_train = load_data()
 
-    #change
+    # change
     n = len(variable_features)
     var_size = len(variable_features[0])
     m = len(constraint_features)
@@ -125,11 +145,13 @@ for now_data in range(data_num):
     features = torch.as_tensor(features).float()
     data_features.append(features)
 
-    #labelA = torch.tensor(patition_color)
+    # labelA = torch.tensor(patition_color)
     new_optimal_solution = []
     for item in optimal_solution:
         new_optimal_solution.append((int)(item))
     optimal_solution = new_optimal_solution
+
+    # used for focal loss
     num_label = [1, 1]
     num_label = torch.as_tensor(num_label).to(device)
     data_labels.append(num_label)
@@ -138,9 +160,9 @@ for now_data in range(data_num):
         optimal_solution.append(0)
 
     labels = []
-    #For Binary
+    # For Binary
     for i in range(n + m):
-        if(optimal_solution[i] == 0):
+        if optimal_solution[i] == 0:
             labels.append([1, 0])
         else:
             labels.append([0, 1])
@@ -154,18 +176,20 @@ for now_data in range(data_num):
     data_idx_train.append(idx_train)
 
 # Model and optimizer
-model = SpGAT(nfeat=data_features[0].shape[1],    # Feature dimension
-            nhid=args.hidden,             # Feature dimension of each hidden layer
-            nclass=int(data_solution[0].max()) + 1, # Number of classes
-            dropout=args.dropout,         # Dropout
-            nheads=args.nb_heads,         # Number of heads
-            alpha=args.alpha)             # LeakyReLU alpha coefficient
+model = SpGAT(
+    nfeat=data_features[0].shape[1],  # Feature dimension
+    nhid=args.hidden,  # Feature dimension of each hidden layer
+    nclass=int(data_solution[0].max()) + 1,  # Number of classes
+    dropout=args.dropout,  # Dropout
+    nheads=args.nb_heads,  # Number of heads
+    alpha=args.alpha,
+)  # LeakyReLU alpha coefficient
 
-optimizer = optim.Adam(model.parameters(),    
-                       lr=args.lr,                        # Learning rate
-                       weight_decay=args.weight_decay)    # Weight decay to prevent overfitting
+optimizer = optim.Adam(
+    model.parameters(), lr=args.lr, weight_decay=args.weight_decay  # Learning rate
+)  # Weight decay to prevent overfitting
 
-if args.cuda: # Move to GPU
+if args.cuda:  # Move to GPU
     model.to(device)
     for now_data in range(data_num):
         data_features[now_data] = data_features[now_data].to(device)
@@ -184,17 +208,25 @@ for now_data in range(data_num):
     data_solution[now_data] = Variable(data_solution[now_data])
     # Define computation graph for automatic differentiation
 
+
 def train(epoch, num):
     global data_edge_features
     t = time.time()
 
-    output, data_edge_features[num] = model(data_features[num], data_edge_A[num], data_edge_B[num], data_edge_features[num].detach())
+    output, data_edge_features[num] = model(
+        data_features[num],
+        data_edge_A[num],
+        data_edge_B[num],
+        data_edge_features[num].detach(),
+    )
     print(data_solution[num][idx_train])
 
     lf = Focal_Loss(torch.as_tensor(data_labels[num]))
+    print(loss_train.detach().numpy(), data_solution[num][idx_train].detach().numpy())
     loss_train = lf(output[idx_train], data_solution[num][idx_train])
 
     return loss_train
+
 
 t_total = time.time()
 loss_values = []
@@ -211,10 +243,9 @@ for epoch in range(args.epochs):
     loss_values.append(now_loss)
     now_loss.backward()
     optimizer.step()
-    print('Epoch: {:04d}'.format(epoch+1),
-          'loss_train: {:.4f}'.format(now_loss))
+    print("Epoch: {:04d}".format(epoch + 1), "loss_train: {:.4f}".format(now_loss))
 
-    torch.save(model.state_dict(), '{}.pkl'.format(epoch))
+    torch.save(model.state_dict(), "{}.pkl".format(epoch))
     if loss_values[-1] < best:
         best = loss_values[-1]
         best_epoch = epoch
@@ -222,18 +253,20 @@ for epoch in range(args.epochs):
     else:
         bad_counter += 1
 
-    if bad_counter == args.patience:  # Stop if there's no improvement for several consecutive rounds
+    if (
+        bad_counter == args.patience
+    ):  # Stop if there's no improvement for several consecutive rounds
         break
 
-    files = glob.glob('*.pkl')
+    files = glob.glob("*.pkl")
     for file in files:
-        epoch_nb = int(file.split('.')[0])
+        epoch_nb = int(file.split(".")[0])
         if epoch_nb < best_epoch:
             os.remove(file)
 
-files = glob.glob('*.pkl')
+files = glob.glob("*.pkl")
 for file in files:
-    epoch_nb = int(file.split('.')[0])
+    epoch_nb = int(file.split(".")[0])
     if epoch_nb > best_epoch:
         os.remove(file)
 
@@ -241,8 +274,7 @@ print("Optimization Finished!")
 print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 
 # Restore best model
-print('Loading {}th epoch'.format(best_epoch))
-model.load_state_dict(torch.load('{}.pkl'.format(best_epoch)))
+print("Loading {}th epoch".format(best_epoch))
+model.load_state_dict(torch.load("{}.pkl".format(best_epoch)))
 
 print(loss_values)
-
