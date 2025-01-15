@@ -97,5 +97,5 @@ class EdgFeature:
             for j, n in enumerate(info.lhs_p[i]):
                 con_srcs.append(i)
                 var_dsts.append(n)
-                vals.append(info.lhs_c[i][j])
+                vals.append([info.lhs_c[i][j]])
         return cls(con_srcs, var_dsts, vals)
