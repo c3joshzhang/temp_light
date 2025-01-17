@@ -15,10 +15,6 @@ class FocalLoss(nn.Module):
         self.weight = weight if weight is not None else torch.as_tensor([1, 1])
 
     def forward(self, preds, labels):
-        """
-        preds: logits output values
-        labels: labels
-        """
         preds = F.softmax(preds, dim=1)
         eps = 1e-7
         target = self.one_hot(preds.size(1), labels)

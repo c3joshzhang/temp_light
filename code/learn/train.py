@@ -1,9 +1,15 @@
-from typing import List, Union
+import random
+import warnings
+from functools import partial
+from typing import Callable, List, Tuple, Union
 
+import dgl
+import gurobipy as gp
 import numpy as np
 import torch
 
 from .feature import ConFeature, EdgFeature, VarFeature
+from .info import ModelInfo
 
 
 class Inst:
@@ -109,23 +115,38 @@ class Inst:
             n_constr = len(self.c_features[i].values)
 
             # TODO: remove padding
+            # TODO: replace with hetro-graph
             arr = np.array([int(v) for v in s] + [0] * n_constr)
             values.append(torch.as_tensor(arr, dtype=torch.int32))
         return values
 
 
-def get_train_mask(size, ratio):
-    num_zero = int(round(size * ratio))
-    mask = torch.ones(size, dtype=torch.bool)
-    idx = torch.randperm(size)[:num_zero]
-    mask[idx] = 0
+def get_train_mask(graph, ratio: float):
+    """return mask for solution that can be included as hint"""
+    assert 0.0 <= ratio <= 1.0
+    is_var_flag_idx = 2
+    var_flag = graph.ndata["feat"][:, is_var_flag_idx]
+    size = list(var_flag[var_flag == 1].size())[0]
+    n_include = int(round(size * ratio))
+    mask = torch.zeros(size, dtype=torch.bool)
+    idx = torch.randperm(size)[:n_include]
+    mask[idx] = 1
     return mask
 
 
-def get_solution_mask(pool, ratio):
-    mask = pool.clone()
+def get_solution_mask(
+    mask: torch.Tensor, ratio: Union[float, Tuple[float, float]] = (0.5, 1.0)
+) -> torch.Tensor:
+    """get solution mask that has ratio between given ratio range that can be included as hint"""
+    mask = mask.clone()
     ones_indices = torch.where(mask == 1)[0]
-    num_keep = int(round(len(ones_indices) * ratio))
+    ratio = (ratio, ratio) if isinstance(ratio, float) else ratio
+    assert 0.0 <= ratio[0] <= 1.0 and 0.0 <= ratio[1] <= 1.0
+
+    min_num_keep = int(round(len(ones_indices) * ratio[0]))
+    max_num_keep = int(round(len(ones_indices) * ratio[1]))
+    max_num_keep = max(min_num_keep, max_num_keep)
+    num_keep = random.randint(min_num_keep, max_num_keep)
 
     if num_keep <= 0:
         mask[ones_indices] = 0
@@ -142,11 +163,70 @@ def get_solution_mask(pool, ratio):
 
 
 def get_mask_node_feature(node_feature, y, mask):
+    """add mask and hint into feature"""
     node_feature_with_y = torch.hstack([node_feature, y.unsqueeze(1)])
     mask = torch.cat([mask, torch.zeros(len(y) - len(mask), dtype=torch.bool)])
     masked = node_feature_with_y.clone()
-    masked[mask, -1] = 0
+    masked[~mask, -1] = 0
     return torch.hstack([masked, mask.unsqueeze(1)]), mask
 
 
-def train(instances, model): ...
+def build_graphs(inst):
+    c_v_edges, v_c_edges, node_features, edge_features, _, _ = inst.xs
+    ys = inst.ys
+
+    graphs = []
+    for i in range(len(ys)):
+        srcs = torch.cat([c_v_edges[i][:, 0], v_c_edges[i][:, 0]])
+        dsts = torch.cat([c_v_edges[i][:, 1], v_c_edges[i][:, 1]])
+
+        # TODO: replace with hetro-graph
+        g = dgl.graph((srcs, dsts))
+        g.ndata["feat"] = node_features[i]
+        g.ndata["label"] = ys[i]
+        g.edata["feat"] = torch.cat([edge_features[i], edge_features[i]])
+        assert (g.in_degrees() == g.out_degrees()).all()
+        graphs.append(g)
+
+    return graphs
+
+
+def build_inst(model_generator: Callable[[], gp.Model], n=1024) -> Inst:
+
+    var_feats = []
+    con_feats = []
+    edg_feats = []
+    solutions = []
+
+    for _ in range(n):
+
+        m = model_generator()
+        info = ModelInfo.from_model(m)
+
+        ss = []
+        m.optimize(partial(_collect_mip_sol, collection=ss))
+
+        vf = VarFeature.from_info(info.var_info, info.obj_info)
+        cf = ConFeature.from_info(info.con_info)
+        ef = EdgFeature.from_info(info.con_info)
+
+        for s in ss:
+            var_feats.append(vf)
+            con_feats.append(cf)
+            edg_feats.append(ef)
+            solutions.append(s)
+
+    return Inst(var_feats, con_feats, edg_feats, solutions)
+
+
+def remove_redundant_nodes(g) -> None:
+    to_remove = (g.in_degrees() == 0).nonzero().reshape(-1).int()
+    g.remove_nodes(to_remove)
+
+
+# TODO: take the objective value into consideration and weight the sample
+def _collect_mip_sol(model: gp.Model, where: int, collection: List) -> None:
+    if where == gp.GRB.Callback.MIPSOL:
+        vs = model.getVars()
+        s = model.cbGetSolution(vs)
+        collection.append(s)
