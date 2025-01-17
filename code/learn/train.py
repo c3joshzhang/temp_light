@@ -1,5 +1,5 @@
+import json
 import random
-import warnings
 from functools import partial
 from typing import Callable, List, Tuple, Union
 
@@ -191,7 +191,12 @@ def build_graphs(inst):
     return graphs
 
 
-def build_inst(model_generator: Callable[[], gp.Model], n=1024) -> Inst:
+def build_inst(model_generator: Callable[[], gp.Model], n=1024, env=None) -> Inst:
+
+    if env is None:
+        with open("gb.lic") as f:
+            params = json.load(f)
+            env = gp.Env(params=params)
 
     var_feats = []
     con_feats = []
@@ -199,22 +204,26 @@ def build_inst(model_generator: Callable[[], gp.Model], n=1024) -> Inst:
     solutions = []
 
     for _ in range(n):
-
-        m = model_generator()
-        info = ModelInfo.from_model(m)
-
-        ss = []
-        m.optimize(partial(_collect_mip_sol, collection=ss))
-
+        raw_m = model_generator()
+        info = ModelInfo.from_model(raw_m)
         vf = VarFeature.from_info(info.var_info, info.obj_info)
         cf = ConFeature.from_info(info.con_info)
         ef = EdgFeature.from_info(info.con_info)
+
+        m = raw_m.copy(env=env)
+        m.update()
+
+        ss = []
+        m.optimize(partial(_collect_mip_sol, variables=m.getVars(), collection=ss))
 
         for s in ss:
             var_feats.append(vf)
             con_feats.append(cf)
             edg_feats.append(ef)
             solutions.append(s)
+
+        raw_m.dispose()
+        m.dispose()
 
     return Inst(var_feats, con_feats, edg_feats, solutions)
 
@@ -225,8 +234,9 @@ def remove_redundant_nodes(g) -> None:
 
 
 # TODO: take the objective value into consideration and weight the sample
-def _collect_mip_sol(model: gp.Model, where: int, collection: List) -> None:
+def _collect_mip_sol(
+    model: gp.Model, where: int, variables: List, collection: List
+) -> None:
     if where == gp.GRB.Callback.MIPSOL:
-        vs = model.getVars()
-        s = model.cbGetSolution(vs)
+        s = model.cbGetSolution(variables)
         collection.append(s)

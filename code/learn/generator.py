@@ -1,3 +1,5 @@
+import random
+
 import gurobipy as gp
 import numpy as np
 
@@ -5,14 +7,16 @@ np.random.seed(0)
 
 
 def maximum_independent_set_problem(
-    num_nodes=50,
+    num_nodes=128,
     edge_prob=0.3,
 ) -> gp.Model:
     edges = []
+    num_nodes = random.randint(10, num_nodes)
     for i in range(num_nodes):
         for j in range(i + 1, num_nodes):
             if np.random.rand() < edge_prob:
                 edges.append((i, j))
+
     m = gp.Model("maximum_independent_set")
     x = m.addVars(num_nodes, vtype=gp.GRB.BINARY, name="x")
 
