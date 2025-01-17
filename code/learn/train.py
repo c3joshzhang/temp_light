@@ -11,6 +11,16 @@ import torch
 from .feature import ConFeature, EdgFeature, VarFeature
 from .info import ModelInfo
 
+__DEVICE_PTR = [torch.device("cuda" if torch.cuda.is_available() else "cpu")]
+
+
+def SET_DEVICE(device):
+    __DEVICE_PTR[0] = device
+
+
+def GET_DEVICE():
+    return __DEVICE_PTR[0]
+
 
 class Inst:
     def __init__(
@@ -214,7 +224,12 @@ def build_inst(model_generator: Callable[[], gp.Model], n=1024, env=None) -> Ins
         m.update()
 
         ss = []
-        m.optimize(partial(_collect_mip_sol, variables=m.getVars(), collection=ss))
+        vs = m.getVars()
+        m.optimize(partial(_collect_mip_sol, variables=vs, collection=ss))
+
+        final_s = [v.X for v in vs]
+        if ss and ss[-1] != final_s:
+            ss.append(final_s)
 
         for s in ss:
             var_feats.append(vf)
