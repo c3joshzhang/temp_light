@@ -8,7 +8,7 @@ from learn.info import ConInfo, ModelInfo
 def build_partial_model(
     info: ModelInfo,
     model=None,
-    const_vars: Optional[Dict[str, float]] = None,
+    const_vars: Optional[Dict[int, float]] = None,
     const_cons: Optional[List[int]] = None,
 ):
 

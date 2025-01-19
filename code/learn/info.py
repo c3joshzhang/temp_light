@@ -22,6 +22,13 @@ class VarInfo:
     def n(self):
         return len(self.lbs)
 
+    def subset(self, ids):
+        assert min(ids) >= 0 and max(ids) < self.n
+        sub_lbs = [self.lbs[i] for i in ids]
+        sub_ubs = [self.ubs[i] for i in ids]
+        sub_types = [self.types[i] for i in ids]
+        return type(self)(sub_lbs, sub_ubs, sub_types)
+
 
 class ConInfo:
 
@@ -52,6 +59,21 @@ class ConInfo:
     def n(self):
         return len(self.rhs)
 
+    def subset(self, ids):
+        must_include = set(ids)
+        sub_lhs_p = []
+        sub_lhs_c = []
+        sub_rhs = []
+        sub_types = []
+        for i in range(self.n):
+            if not all(j in must_include for j in self.lhs_p[i]):
+                continue
+            sub_lhs_p.append(self.lhs_p[i])
+            sub_lhs_c.append(self.lhs_c[i])
+            sub_rhs.append(self.rhs[i])
+            sub_types.append(self.types[i])
+        return type(self)(sub_lhs_p, sub_lhs_c, sub_rhs, sub_types)
+
 
 class ObjInfo:
 
@@ -61,6 +83,9 @@ class ObjInfo:
 
     def __repr__(self):
         return f"[{self.ks}, {self.sense}]"
+
+    def subset(self, ids):
+        return type(self)([self.ks[i] for i in ids], self.sense)
 
 
 class ModelInfo:
@@ -165,3 +190,10 @@ class ModelInfo:
         con_info = cls._parse_con_info(model)
         obj_info = cls._parse_obj_info(model)
         return cls(var_info, con_info, obj_info)
+
+    def subset(self, ids):
+        return type(self)(
+            self.var_info.subset(ids),
+            self.con_info.subset(ids),
+            self.obj_info.subset(ids),
+        )

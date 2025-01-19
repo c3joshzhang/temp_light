@@ -7,7 +7,7 @@ np.random.seed(0)
 
 
 def maximum_independent_set_problem(
-    num_nodes=128,
+    num_nodes=32,
     edge_prob=0.3,
 ) -> gp.Model:
     edges = []
