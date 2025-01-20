@@ -23,11 +23,13 @@ class VarInfo:
         return len(self.lbs)
 
     def subset(self, ids):
+        ids = list(set(ids))
         assert min(ids) >= 0 and max(ids) < self.n
         sub_lbs = [self.lbs[i] for i in ids]
         sub_ubs = [self.ubs[i] for i in ids]
         sub_types = [self.types[i] for i in ids]
-        return type(self)(sub_lbs, sub_ubs, sub_types)
+        new_old_mapping = {new_i: old_i for new_i, old_i in enumerate(ids)}
+        return type(self)(sub_lbs, sub_ubs, sub_types), new_old_mapping
 
 
 class ConInfo:
@@ -60,6 +62,9 @@ class ConInfo:
         return len(self.rhs)
 
     def subset(self, ids):
+        ids = list(set(ids))
+        new_old_mapping = {new_i: old_i for new_i, old_i in enumerate(ids)}
+        old_new_mapping = {old_i: new_i for new_i, old_i in enumerate(ids)}
         must_include = set(ids)
         sub_lhs_p = []
         sub_lhs_c = []
@@ -68,11 +73,12 @@ class ConInfo:
         for i in range(self.n):
             if not all(j in must_include for j in self.lhs_p[i]):
                 continue
-            sub_lhs_p.append(self.lhs_p[i])
+
+            sub_lhs_p.append([old_new_mapping[j] for j in self.lhs_p[i]])
             sub_lhs_c.append(self.lhs_c[i])
             sub_rhs.append(self.rhs[i])
             sub_types.append(self.types[i])
-        return type(self)(sub_lhs_p, sub_lhs_c, sub_rhs, sub_types)
+        return type(self)(sub_lhs_p, sub_lhs_c, sub_rhs, sub_types), new_old_mapping
 
 
 class ObjInfo:
@@ -85,7 +91,9 @@ class ObjInfo:
         return f"[{self.ks}, {self.sense}]"
 
     def subset(self, ids):
-        return type(self)([self.ks[i] for i in ids], self.sense)
+        new_old_mapping = {new_i: old_i for new_i, old_i in enumerate(ids)}
+        new_ks = {i: self.ks[i] for i in ids if i in self.ks}
+        return type(self)(new_ks, self.sense), new_old_mapping
 
 
 class ModelInfo:
@@ -192,8 +200,8 @@ class ModelInfo:
         return cls(var_info, con_info, obj_info)
 
     def subset(self, ids):
-        return type(self)(
-            self.var_info.subset(ids),
-            self.con_info.subset(ids),
-            self.obj_info.subset(ids),
-        )
+        ids = list(set(ids))
+        sub_var_info, new_old_mapping = self.var_info.subset(ids)
+        sub_con_info, new_old_mapping = self.con_info.subset(ids)
+        sub_obj_info, new_old_mapping = self.obj_info.subset(ids)
+        return type(self)(sub_var_info, sub_con_info, sub_obj_info), new_old_mapping
