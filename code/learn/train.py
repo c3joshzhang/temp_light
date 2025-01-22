@@ -29,12 +29,14 @@ class Inst:
         c_features: List[ConFeature],
         e_features: List[EdgFeature],
         solutions: List[List[Union[float, int]]],
+        distances: List[List[Union[float, int]]],
     ):
         assert len(v_features) == len(c_features) == len(e_features) == len(solutions)
         self.v_features = v_features
         self.c_features = c_features
         self.e_features = e_features
         self.solutions = solutions
+        self.distances = distances
 
     @property
     def n(self):
@@ -126,9 +128,24 @@ class Inst:
 
             # TODO: remove padding
             # TODO: replace with hetro-graph
-            arr = np.array([int(v) for v in s] + [0] * n_constr)
+
+            arr = np.array(
+                [[0, 1] if v == 1 else [1, 0] for v in s] + [[0, 0]] * n_constr
+            )
             values.append(torch.as_tensor(arr, dtype=torch.int32))
-        return values
+
+        distances = []
+        for i, d in enumerate(self.distances):
+
+            # TODO: use accessor method
+            n_constr = len(self.c_features[i].values)
+
+            # TODO: remove padding
+            # TODO: replace with hetro-graph
+            arr = np.array(d + [[0, 0, 0]] * n_constr)
+            distances.append(torch.as_tensor(arr, dtype=torch.int32))
+
+        return values, distances
 
 
 def get_train_mask(graph, ratio: float):
@@ -174,7 +191,7 @@ def get_solution_mask(
 
 def get_mask_node_feature(node_feature, y, mask):
     """add mask and hint into feature"""
-    node_feature_with_y = torch.hstack([node_feature, y.unsqueeze(1)])
+    node_feature_with_y = torch.hstack([node_feature, (y[:, 1] == 0).unsqueeze(1)])
     mask = torch.cat([mask, torch.zeros(len(y) - len(mask), dtype=torch.bool)])
     masked = node_feature_with_y.clone()
     masked[~mask, -1] = 0
@@ -183,7 +200,7 @@ def get_mask_node_feature(node_feature, y, mask):
 
 def build_graphs(inst):
     c_v_edges, v_c_edges, node_features, edge_features, _, _ = inst.xs
-    ys = inst.ys
+    ys, dists = inst.ys
 
     graphs = []
     for i in range(len(ys)):
@@ -194,6 +211,7 @@ def build_graphs(inst):
         g = dgl.graph((srcs, dsts))
         g.ndata["feat"] = node_features[i]
         g.ndata["label"] = ys[i]
+        g.ndata["distance"] = dists[i]
         g.edata["feat"] = torch.cat([edge_features[i], edge_features[i]])
         assert (g.in_degrees() == g.out_degrees()).all()
         graphs.append(g)
@@ -203,15 +221,16 @@ def build_graphs(inst):
 
 def build_inst(model_generator: Callable[[], gp.Model], n=1024, env=None) -> Inst:
 
-    if env is None:
-        with open("gb.lic") as f:
-            params = json.load(f)
-            env = gp.Env(params=params)
+    # if env is None:
+    #     with open("gb.lic") as f:
+    #         params = json.load(f)
+    #         env = gp.Env(params=params)
 
     var_feats = []
     con_feats = []
     edg_feats = []
     solutions = []
+    distances = []
 
     for _ in range(n):
         raw_m = model_generator()
@@ -220,7 +239,7 @@ def build_inst(model_generator: Callable[[], gp.Model], n=1024, env=None) -> Ins
         cf = ConFeature.from_info(info.con_info)
         ef = EdgFeature.from_info(info.con_info)
 
-        m = raw_m.copy(env=env)
+        m = raw_m if env is None else raw_m.copy(env=env)
         m.update()
 
         ss = []
@@ -236,11 +255,23 @@ def build_inst(model_generator: Callable[[], gp.Model], n=1024, env=None) -> Ins
             con_feats.append(cf)
             edg_feats.append(ef)
             solutions.append(s)
+            d = []
+            for v1, v2 in zip(s, ss[-1]):
+                if v1 == v2:
+                    d.append([0, 1, 0])
+                    continue
+                if v1 < v2:
+                    d.append([0, 0, 1])
+                    continue
+                if v1 > v2:
+                    d.append([1, 0, 0])
+                    continue
+            distances.append(d)
 
         raw_m.dispose()
         m.dispose()
 
-    return Inst(var_feats, con_feats, edg_feats, solutions)
+    return Inst(var_feats, con_feats, edg_feats, solutions, distances)
 
 
 def remove_redundant_nodes(g) -> None:

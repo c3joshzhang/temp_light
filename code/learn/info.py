@@ -3,12 +3,20 @@ from typing import Dict
 import gurobipy as gp
 
 
+def _handle_inf(v):
+    # if v == float('inf'):
+    #     return 1e10
+    # if v == -float('inf'):
+    #     return -1e10
+    return v
+
+
 class VarInfo:
 
     def __init__(self, lbs, ubs, types):
         assert len(lbs) == len(ubs) == len(types)
-        self.lbs = lbs
-        self.ubs = ubs
+        self.lbs = [_handle_inf(l) for l in lbs]
+        self.ubs = [_handle_inf(u) for u in ubs]
         self.types = types
 
     def __repr__(self):
@@ -40,7 +48,7 @@ class ConInfo:
     def __init__(self, lhs_p, lhs_c, rhs, types):
         self.lhs_p = lhs_p
         self.lhs_c = lhs_c
-        self.rhs = rhs
+        self.rhs = [_handle_inf(r) for r in rhs]
         self.types = types
 
     def __repr__(self):
@@ -79,6 +87,15 @@ class ConInfo:
             sub_rhs.append(self.rhs[i])
             sub_types.append(self.types[i])
         return type(self)(sub_lhs_p, sub_lhs_c, sub_rhs, sub_types), new_old_mapping
+
+    def expand(self, ids, ratio_threshold=0.5):
+        ids = set(ids)
+        expand_ids = ids.copy()
+        for i in range(self.n):
+            cnt = sum(j in ids for j in self.lhs_p[i])
+            if len(self.lhs_p[i]) * ratio_threshold <= cnt:
+                expand_ids.update(self.lhs_p[i])
+        return list(expand_ids)
 
 
 class ObjInfo:
@@ -201,6 +218,10 @@ class ModelInfo:
 
     def subset(self, ids):
         ids = list(set(ids))
+        print(len(ids))
+        ids = self.con_info.expand(ids, 0.5)
+        print(len(ids))
+        print("-" * 78)
         sub_var_info, new_old_mapping = self.var_info.subset(ids)
         sub_con_info, new_old_mapping = self.con_info.subset(ids)
         sub_obj_info, new_old_mapping = self.obj_info.subset(ids)

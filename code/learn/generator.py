@@ -1,13 +1,15 @@
+import math
 import random
 
 import gurobipy as gp
 import numpy as np
 
 np.random.seed(0)
+random.seed(0)
 
 
 def maximum_independent_set_problem(
-    num_nodes=32,
+    num_nodes=64,
     edge_prob=0.3,
 ) -> gp.Model:
     edges = []
