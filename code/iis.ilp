@@ -1,0 +1,15 @@
+\ Model _copy_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+\ Signature: 0x6e6bbe1c0f2f3b80
+Maximize
+ 
+Subject To
+ R252947: - C62906 - C62932 - C62958 - C62984 - C63010 - C63036 - C63062
+   - C63088 - C63114 - C63140 - C63166 - C63192 - C63218 - C63233 <= -13
+Bounds
+ C63036 = 0
+ C63192 = 0
+Binaries
+ C62906 C62932 C62958 C62984 C63010 C63036 C63062 C63088 C63114 C63140
+ C63166 C63192 C63218 C63233
+End
