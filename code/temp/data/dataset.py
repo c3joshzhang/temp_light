@@ -1,5 +1,6 @@
 import os
 import random
+import itertools
 
 import gurobipy as gp
 import numpy as np
@@ -10,7 +11,9 @@ from tqdm import tqdm
 from .graph import add_label, get_bipartite_graph
 from .info import ModelInfo
 from .preprocessing import constraint_valuation
+from typing import List
 
+from joblib import Parallel, delayed
 
 class BipartiteData(Data):
     def __inc__(self, key, value, *args, **kwargs):
@@ -49,37 +52,32 @@ class ModelGraphDataset(InMemoryDataset):
         return ["data.pt"]
 
     def process(self):
-        raw_info = []
+        
+        raw_names = []
+        raw_infos = []
         for n in self._inst_names:
             m = gp.read(os.path.join(self.root, f"{n}.lp"))
             s = np.load(os.path.join(self.root, f"{n}.npz"))["solutions"]
             info = ModelInfo.from_model(m)
             info.var_info.sols = s
-            raw_info.append((n, info))
+            raw_names.append(n)
+            raw_infos.append(info)
 
-        aug_info = []
+        aug_names = []
+        aug_infos = []
         if self._augment is not None:
-            for n, info in tqdm(raw_info, desc="model info augmentation"):
-                aug_infos = self._augment(info)
-                aug_names = [f"aug_{i}_{n}" for i in range(len(aug_infos))]
-                aug_info.extend(zip(aug_names, aug_infos))
+            for n, info in tqdm(zip(raw_names, raw_infos), desc="model info augmentation"):
+                cur_aug = self._augment(info)
+                aug_infos.extend(cur_aug)
+                aug_names.extend(f"aug_{i}_{n}" for i in range(len(cur_aug)))
 
-        processed = []
-        for n, info in tqdm(raw_info + aug_info, desc="create data"):
-            data = self.info_to_data(info)
-            data.instance_name = n
-            processed.append(data)
+        processed_names = raw_names + aug_names
+        processed = parallel_info_to_data(raw_infos + aug_infos)
+        for n, p in zip(processed_names, processed):
+            p.instance_name = n
 
         random.shuffle(processed)
         torch.save(self.collate(processed), self.processed_paths[0])
-
-    @staticmethod
-    def info_to_data(info: ModelInfo):
-        sol = info.var_info.sols
-        g, _ = get_bipartite_graph(info)
-        g = add_label(g, info, sol) if sol is not None else g
-        data = create_data_object(g, sol is not None)
-        return data
 
     def get(self, idx):
         data = super().get(idx)
@@ -95,7 +93,25 @@ class ModelGraphDataset(InMemoryDataset):
         return [p[:-lp_suffix_len] for p in mdl_paths]
 
 
-def create_data_object(graph, is_labeled=True):
+def info_to_data(info: ModelInfo):
+    sol = info.var_info.sols
+    g, _ = get_bipartite_graph(info)
+    g = add_label(g, info, sol) if sol is not None else g
+    data = create_data_object(g, sol is not None)
+    return data
+
+
+def parallel_info_to_data(infos: List[ModelInfo], jobs=10):
+    to_data = lambda infos: [info_to_data(i) for i in infos]
+    chunk_size = max(len(infos) // jobs, 1)
+    res = Parallel(n_jobs=jobs)(
+        delayed(to_data)(infos[i: i + chunk_size]) for i in range(jobs)
+    )
+    return list(itertools.chain(*res))
+
+
+
+def create_data_object(graph, is_labeled=True) -> BipartiteData:
     """Create a BipartiteData object from a graph.
 
     Args:

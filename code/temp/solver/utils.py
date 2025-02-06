@@ -46,6 +46,12 @@ def set_starts(inst, starts):
         vs[i].setAttr("lb", s)
 
 
+def solve_inst(inst):
+    vs = inst.getVars()
+    inst.optimize()
+    return inst.getAttr("X", vs)
+
+
 def repair(inst, fixed: set, bounds: dict):
     old_iis_method = getattr(inst, "IISMethod", -1)
     inst.setParam("IISMethod", 0)

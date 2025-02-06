@@ -1,1 +1,4 @@
 gb.lic
+temp/pre_train
+temp/train
+temp/valid

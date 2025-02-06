@@ -17,12 +17,12 @@ from torch.optim import lr_scheduler
 # from docplex.mp.model_reader import ModelReader
 # from docplex.mp.conflict_refiner import ConflictRefiner
 
-from models.gnn import SimpleMIPGNN, MIPGNN
-from graph_preprocessing import AbcNorm, GraphDataset
-from loss import LossHandler
-from nn_utils import NoamLR
-from global_vars import *
+from .gnn import SimpleMIPGNN, MIPGNN
+from temp.data.preprocessing import AbcNorm
+from temp.model.loss import LossHandler
+from temp.model.nn_utils import NoamLR
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def to_numpy(tensor_obj):
     return tensor_obj.cpu().detach().numpy()
@@ -49,44 +49,6 @@ def free_gpu_memory():
     if "cuda" in DEVICE.type:
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
-
-
-def get_cplex_instance(
-    instance_path, instance_name, interface_type="cplex", instance_file_type=None
-):
-
-    if instance_file_type is None:
-        mps_instance_path = str(instance_path.joinpath(instance_name)) + ".mps"
-        lp_instance_path = str(instance_path.joinpath(instance_name)) + ".lp"
-
-        if Path(mps_instance_path).exists():
-            instance_file_path = mps_instance_path
-        elif Path(lp_instance_path).exists():
-            instance_file_path = lp_instance_path
-        else:
-            raise Exception(f"No {instance_name} in {instance_path}")
-    else:
-        instance_file_path = str(
-            instance_path.joinpath(instance_name + instance_file_type)
-        )
-
-    if interface_type == "cplex":
-        instance_cpx = cplex.Cplex(instance_file_path)
-    else:  # docplex
-        instance_cpx = ModelReader.read_model(instance_file_path)
-
-    return instance_cpx
-
-
-def get_trained_model_config(prob_name: str, config_id: int) -> pd.DataFrame:
-
-    config = (
-        pd.read_excel(MODEL_DIR / f"{prob_name}_model_configs.xlsx", index_col=0)
-        .loc[config_id]
-        .T.to_dict()
-    )
-
-    return config
 
 
 def get_model(
@@ -267,74 +229,74 @@ def get_solver_results(solution_path):
     return logs
 
 
-def get_co_datasets(
-    prob_name: str, dataset_names: List[str], dataset_sizes: List[int], abc_norm: bool
-):
+# def get_co_datasets(
+#     prob_name: str, dataset_names: List[str], dataset_sizes: List[int], abc_norm: bool
+# ):
 
-    dt_lst = []
-    dtypes = np.array(["train", "val", "test", "transfer"])
+#     dt_lst = []
+#     dtypes = np.array(["train", "val", "test", "transfer"])
 
-    for i, dt_name in enumerate(dataset_names):
+#     for i, dt_name in enumerate(dataset_names):
 
-        dt_type = dtypes[
-            [
-                "train" in dt_name,
-                "val" in dt_name,
-                "test" in dt_name,
-                "transfer" in dt_name,
-            ]
-        ][0]
-        graph_path = DATA_DIR.joinpath("graphs", prob_name, dt_name)
-        instance_path = DATA_DIR.joinpath("instances", prob_name, dt_name)
-        solution_path = DATA_DIR.joinpath("solution_pools", prob_name, dt_name)
+#         dt_type = dtypes[
+#             [
+#                 "train" in dt_name,
+#                 "val" in dt_name,
+#                 "test" in dt_name,
+#                 "transfer" in dt_name,
+#             ]
+#         ][0]
+#         graph_path = DATA_DIR.joinpath("graphs", prob_name, dt_name)
+#         instance_path = DATA_DIR.joinpath("instances", prob_name, dt_name)
+#         solution_path = DATA_DIR.joinpath("solution_pools", prob_name, dt_name)
 
-        target_instances = sorted(
-            list(
-                set(
-                    [
-                        name.replace("_data.pt", "")
-                        for name in os.listdir(graph_path.joinpath("processed"))
-                        if name.endswith("_data.pt")
-                    ]
-                )
-            )
-        )
+#         target_instances = sorted(
+#             list(
+#                 set(
+#                     [
+#                         name.replace("_data.pt", "")
+#                         for name in os.listdir(graph_path.joinpath("processed"))
+#                         if name.endswith("_data.pt")
+#                     ]
+#                 )
+#             )
+#         )
 
-        # Checking training and validation instances of setcover problem since they could be (rarely) solved suboptimally.
-        if prob_name in ["setcover"] and dt_type in ["train", "val"]:
-            # print(f"# {dt_name} instances:", len(target_instances))
+#         # Checking training and validation instances of setcover problem since they could be (rarely) solved suboptimally.
+#         if prob_name in ["setcover"] and dt_type in ["train", "val"]:
+#             # print(f"# {dt_name} instances:", len(target_instances))
 
-            logs = get_solver_results(solution_path).loc[target_instances]
-            logs = logs[logs["phase2_gap"] != -1]  # masking out infeasible instances
-            target_instances = sorted(
-                list(
-                    set(logs[logs["phase2_gap"] < 0.0001].index) & set(target_instances)
-                )
-            )
-            # print(f"# {dt_name} instances solved optimally:", len(target_instances))
+#             logs = get_solver_results(solution_path).loc[target_instances]
+#             logs = logs[logs["phase2_gap"] != -1]  # masking out infeasible instances
+#             target_instances = sorted(
+#                 list(
+#                     set(logs[logs["phase2_gap"] < 0.0001].index) & set(target_instances)
+#                 )
+#             )
+#             # print(f"# {dt_name} instances solved optimally:", len(target_instances))
 
-        size = dataset_sizes[i]
+#         size = dataset_sizes[i]
 
-        target_instances = target_instances[:size]
+#         target_instances = target_instances[:size]
 
-        # target_instances = OrderedDict(zip(range(len(target_instances)),sorted(target_instances)))
+#         # target_instances = OrderedDict(zip(range(len(target_instances)),sorted(target_instances)))
 
-        transform_func = AbcNorm if abc_norm else None
+#         transform_func = AbcNorm if abc_norm else None
 
-        dataset = GraphDataset(
-            prob_name,
-            dt_type,
-            dt_name,
-            instance_path,
-            graph_path,
-            target_instances,
-            transform=transform_func,
-        )[:size]
+#         dataset = GraphDataset(
+#             prob_name,
+#             dt_type,
+#             dt_name,
+#             instance_path,
+#             graph_path,
+#             target_instances,
+#             transform=transform_func,
+#         )[:size]
 
-        dt_lst.append(dataset)
+#         dt_lst.append(dataset)
 
-        if dt_type in ["train", "val"]:
-            bias = np.mean([data.y_incumbent.mean().item() for i, data in dataset])
-            print(prob_name, dt_name, "| Size:", len(dataset), "Bias:", bias)
+#         if dt_type in ["train", "val"]:
+#             bias = np.mean([data.y_incumbent.mean().item() for i, data in dataset])
+#             print(prob_name, dt_name, "| Size:", len(dataset), "Bias:", bias)
 
-    return dt_lst
+#     return dt_lst

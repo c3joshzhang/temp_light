@@ -49,11 +49,6 @@ def get_confident_idx(indices, uncertainty, threshold):
     return sorted(confident_idx)
 
 
-def solve(inst):
-    vs = inst.getVars()
-    inst.optimize()
-    return inst.getAttr("X", vs)
-
 
 def solve(inst, prediction, uncertainty, indices, max_iter):
 

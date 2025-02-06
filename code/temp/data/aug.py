@@ -3,8 +3,11 @@ import random
 import gurobipy as gp
 import numpy as np
 import torch
+import itertools
+from joblib import Parallel, delayed
 
 from .info import ConInfo, ModelInfo, VarInfo
+from typing import List
 
 
 def get_lhs_matrix(n_var: int, con_info: ConInfo) -> torch.Tensor:
@@ -77,19 +80,28 @@ def shift_model_info(info: ModelInfo, var_shift, con_shift, obj_shift):
     return info
 
 
-def augment_model_info(info: ModelInfo, prob=0.2, n=10):
+def augment_info(info: ModelInfo, prob=0.2, n=10):
     assert info.var_info.sols is not None, "info must contain solution at var_info.sols"
-    aug = []
-    for i in range(n):
+    augs = []
+    for _ in range(n):
         vals = info.var_info.sols[0, 1:]
         shifted_vals = random_shift_binary_var_val(vals, info.var_info, prob=prob)
         lhs = get_lhs_matrix(info.var_info.n, info.con_info)
         var_shfit = shifted_vals - vals
         con_shift = get_con_shift(lhs, var_shfit)
         obj_shift = get_obj_shift(info.obj_info.ks, var_shfit)
-        shifted_info = shift_model_info(info, var_shfit, con_shift, obj_shift)
-        aug.append(shifted_info)
-    return aug
+        a = shift_model_info(info, var_shfit, con_shift, obj_shift)
+        augs.append(a)
+    return augs
+
+
+def parallel_augment_info(info: ModelInfo, prob=0.2, n=10, jobs=10) -> List[ModelInfo]:
+    n_per_job = n // jobs
+    augs = Parallel(n_jobs=jobs)(
+        delayed(augment_info)(info, prob, n_per_job)
+        for _ in range(jobs)
+    )
+    return list(itertools.chain(*augs))
 
 
 # def shift_model(model, var_shift, rhs_shift):

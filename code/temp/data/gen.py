@@ -17,6 +17,8 @@ def generate_problem(
 def parallel_generate_problem(
     generator: Callable[[], gp.Model], save_path: str, n_insts: int, n_jobs: int
 ):
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
     n_insts_per_job = n_insts // n_jobs
     Parallel(n_jobs=n_jobs)(
         delayed(generate_problem)(generator, save_path, i, n_insts_per_job)
@@ -34,6 +36,10 @@ def generate_solutions(model_paths: List[str], n=10, lic=None):
 
         vs = model.getVars()
         obj_val_and_sols = []
+
+        if model.SolCount == 0:
+            os.remove(model_path)
+
         for i in range(model.SolCount):
             # TODO: setting solution number actually takes long time try to optimize
             # TODO: add function to round by tolerance
