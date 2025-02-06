@@ -1,14 +1,14 @@
 import os
-import networkx as nx
-from torch_geometric.data import InMemoryDataset, Data
-from torch_geometric.nn import MessagePassing
-from sklearn.preprocessing import StandardScaler
-import numpy as np
 import random
-import torch
-import gurobipy as gp
 
+import gurobipy as gp
+import networkx as nx
+import numpy as np
+import torch
 from global_vars import *
+from sklearn.preprocessing import StandardScaler
+from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.nn import MessagePassing
 
 
 def get_bipartite_graph(info):

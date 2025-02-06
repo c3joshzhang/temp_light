@@ -1,8 +1,9 @@
-from .nn_utils import *
+from temp.data.preprocessing import get_node_degrees
+
 from .edgeconv_bipartite_class import EC_bipartite_layers
 from .gin_bipartite_class import GIN_bipartite_layers
+from .nn_utils import *
 from .sage_bipartite_class import SAGE_bipartite_layers
-from temp.data.preprocessing import get_node_degrees
 
 GNN_layers = {
     "EC": EC_bipartite_layers,

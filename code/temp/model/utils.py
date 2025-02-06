@@ -1,28 +1,30 @@
-import random
 import glob
-import time
-import pickle
 import os
+import pickle
+import random
+import time
+from collections import OrderedDict
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-
-from pathlib import Path
-from collections import OrderedDict
-from typing import List, Dict, Optional, Tuple
-
 import torch
 from torch.optim import lr_scheduler
+
+from temp.data.preprocessing import AbcNorm
+from temp.model.loss import LossHandler
+from temp.model.nn_utils import NoamLR
+
+from .gnn import MIPGNN, SimpleMIPGNN
 
 # import cplex
 # from docplex.mp.model_reader import ModelReader
 # from docplex.mp.conflict_refiner import ConflictRefiner
 
-from .gnn import SimpleMIPGNN, MIPGNN
-from temp.data.preprocessing import AbcNorm
-from temp.model.loss import LossHandler
-from temp.model.nn_utils import NoamLR
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def to_numpy(tensor_obj):
     return tensor_obj.cpu().detach().numpy()

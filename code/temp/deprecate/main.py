@@ -1,20 +1,19 @@
 import sys
 
 sys.path.append(".")
-import os
 import argparse
-import pandas as pd
+import os
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
-from multiprocessing import cpu_count, Pool
-from utils import get_co_datasets, get_model
-
 
 # import cplex_run
 import data_generation
-import trainer
 import ml_augmented_opt
-from utils import *
+import pandas as pd
+import trainer
 from global_vars import *
+from utils import *
+from utils import get_co_datasets, get_model
 
 if __name__ == "__main__":
 

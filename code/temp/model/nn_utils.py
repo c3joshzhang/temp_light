@@ -1,30 +1,29 @@
+from typing import List, Optional, Union
+
+import numpy as np
+import pandas as pd
 import torch
 from torch import Tensor
 from torch.nn import (
-    Sequential,
-    Linear,
-    Dropout,
-    Parameter,
-    LogSoftmax,
-    Sigmoid,
-    ReLU,
-    LeakyReLU,
-    Tanh,
     SELU,
+    Dropout,
+    LeakyReLU,
+    Linear,
+    LogSoftmax,
+    Parameter,
+    ReLU,
+    Sequential,
+    Sigmoid,
     SiLU,
+    Tanh,
 )
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.checkpoint import checkpoint
-
 from torch_geometric.nn import MessagePassing, MultiAggregation, global_mean_pool
-from torch_geometric.nn.norm import GraphNorm, BatchNorm, InstanceNorm
 from torch_geometric.nn.aggr import Aggregation
+from torch_geometric.nn.norm import BatchNorm, GraphNorm, InstanceNorm
 from torch_geometric.utils import softmax
-
-from typing import List, Union, Optional
-import numpy as np
-import pandas as pd
 
 
 class NoNorm(torch.nn.Module):

@@ -1,32 +1,29 @@
-import os
+import argparse
 import glob
-from pathlib import Path
 import json
+import os
+import pickle
+import time
+from multiprocessing import Pool, Process, cpu_count
+from pathlib import Path
+from typing import Dict, List
+
+import gurobipy as gp
 import numpy as np
 import pandas as pd
-from multiprocessing import Pool, cpu_count
-import time
-import argparse
-from typing import List, Dict
-import pickle
-import gurobipy as gp
-from gurobipy import GRB
-from multiprocessing import Process
-
-
 from global_vars import (
     DATA_DIR,
     INSTANCE_FILE_TYPES,
+    TARGET_DT_NAMES,
     TRAIN_DT_NAMES,
     VAL_DT_NAMES,
-    TARGET_DT_NAMES,
 )
-
 from graph_preprocessing import (
     create_data_object,
     get_bipartite_graph,
     get_labeled_graph,
 )
+from gurobipy import GRB
 
 
 def get_instance_names(instance_path, instance_file_type):

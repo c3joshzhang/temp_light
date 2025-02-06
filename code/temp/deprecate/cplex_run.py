@@ -1,16 +1,15 @@
-import os
 import argparse
-import time
-import random
 import glob
-from pathlib import Path
+import os
+import random
+import time
 from multiprocessing import Pool, cpu_count
-import numpy as np
-import pandas as pd
+from pathlib import Path
 
 import cplex
+import numpy as np
+import pandas as pd
 from cplex.callbacks import MIPCallback
-
 from global_vars import *
 from utils import *
 

@@ -1,6 +1,7 @@
 import os
-from pathlib import Path
 from multiprocessing import cpu_count
+from pathlib import Path
+
 import torch
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

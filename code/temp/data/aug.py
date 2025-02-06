@@ -1,13 +1,13 @@
+import itertools
 import random
+from typing import List
 
 import gurobipy as gp
 import numpy as np
 import torch
-import itertools
 from joblib import Parallel, delayed
 
 from .info import ConInfo, ModelInfo, VarInfo
-from typing import List
 
 
 def get_lhs_matrix(n_var: int, con_info: ConInfo) -> torch.Tensor:
@@ -98,8 +98,7 @@ def augment_info(info: ModelInfo, prob=0.2, n=10):
 def parallel_augment_info(info: ModelInfo, prob=0.2, n=10, jobs=10) -> List[ModelInfo]:
     n_per_job = n // jobs
     augs = Parallel(n_jobs=jobs)(
-        delayed(augment_info)(info, prob, n_per_job)
-        for _ in range(jobs)
+        delayed(augment_info)(info, prob, n_per_job) for _ in range(jobs)
     )
     return list(itertools.chain(*augs))
 

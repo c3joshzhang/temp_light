@@ -1,8 +1,8 @@
 import os
 from typing import Callable, List
 
-import numpy as np
 import gurobipy as gp
+import numpy as np
 from joblib import Parallel, delayed
 
 
@@ -56,11 +56,10 @@ def parallel_generate_solutions(model_path: str, n_jobs: int):
     model_files_paths = [p for p in os.listdir(model_path) if p.endswith(".lp")]
     model_files_paths = [os.path.join(model_path, p) for p in model_files_paths]
 
-    job_model_paths = []
     chunk_size = max((len(model_files_paths) // n_jobs), 1)
-    for i in range(0, len(model_files_paths), chunk_size):
-        job_model_paths.append(model_files_paths[i : i + chunk_size])
-
     Parallel(n_jobs=n_jobs)(
-        delayed(generate_solutions)(job_model_paths[i]) for i in range(n_jobs)
+        delayed(generate_solutions)(
+            model_files_paths[i * chunk_size : (i + 1) * chunk_size]
+        )
+        for i in range(n_jobs)
     )

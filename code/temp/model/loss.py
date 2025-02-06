@@ -1,8 +1,8 @@
-import torch
-import torch.nn.functional as F
-from torchmetrics import F1Score, Precision, Recall, AveragePrecision, Accuracy
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn.functional as F
+from torchmetrics import Accuracy, AveragePrecision, F1Score, Precision, Recall
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

@@ -49,7 +49,6 @@ def get_confident_idx(indices, uncertainty, threshold):
     return sorted(confident_idx)
 
 
-
 def solve(inst, prediction, uncertainty, indices, max_iter):
 
     threshold = get_threshold(uncertainty)

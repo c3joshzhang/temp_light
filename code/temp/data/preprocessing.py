@@ -1,6 +1,8 @@
 import torch
 from torch_geometric.nn import MessagePassing
 
+from temp.deprecate.global_vars import DEVICE
+
 
 def scale_node_degrees(data_obj):
 

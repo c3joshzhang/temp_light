@@ -1,19 +1,19 @@
+import itertools
 import os
 import random
-import itertools
+from typing import List
 
 import gurobipy as gp
 import numpy as np
 import torch
+from joblib import Parallel, delayed
 from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 
 from .graph import add_label, get_bipartite_graph
 from .info import ModelInfo
 from .preprocessing import constraint_valuation
-from typing import List
 
-from joblib import Parallel, delayed
 
 class BipartiteData(Data):
     def __inc__(self, key, value, *args, **kwargs):
@@ -52,7 +52,7 @@ class ModelGraphDataset(InMemoryDataset):
         return ["data.pt"]
 
     def process(self):
-        
+
         raw_names = []
         raw_infos = []
         for n in self._inst_names:
@@ -66,7 +66,9 @@ class ModelGraphDataset(InMemoryDataset):
         aug_names = []
         aug_infos = []
         if self._augment is not None:
-            for n, info in tqdm(zip(raw_names, raw_infos), desc="model info augmentation"):
+            for n, info in tqdm(
+                zip(raw_names, raw_infos), desc="model info augmentation"
+            ):
                 cur_aug = self._augment(info)
                 aug_infos.extend(cur_aug)
                 aug_names.extend(f"aug_{i}_{n}" for i in range(len(cur_aug)))
@@ -105,10 +107,10 @@ def parallel_info_to_data(infos: List[ModelInfo], jobs=10):
     to_data = lambda infos: [info_to_data(i) for i in infos]
     chunk_size = max(len(infos) // jobs, 1)
     res = Parallel(n_jobs=jobs)(
-        delayed(to_data)(infos[i: i + chunk_size]) for i in range(jobs)
+        delayed(to_data)(infos[i * chunk_size : (i + 1) * chunk_size])
+        for i in range(jobs)
     )
     return list(itertools.chain(*res))
-
 
 
 def create_data_object(graph, is_labeled=True) -> BipartiteData:
