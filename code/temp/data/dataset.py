@@ -74,7 +74,7 @@ class ModelGraphDataset(InMemoryDataset):
                 aug_names.extend(f"aug_{i}_{n}" for i in range(len(cur_aug)))
 
         processed_names = raw_names + aug_names
-        processed = parallel_info_to_data(raw_infos + aug_infos)
+        processed = sequential_info_to_data(raw_infos + aug_infos)
         for n, p in zip(processed_names, processed):
             p.instance_name = n
 
@@ -111,6 +111,11 @@ def parallel_info_to_data(infos: List[ModelInfo], jobs=10):
         for i in range(jobs)
     )
     return list(itertools.chain(*res))
+
+
+def sequential_info_to_data(infos: List[ModelInfo]):
+    res = [info_to_data(i) for i in infos]
+    return res
 
 
 def create_data_object(graph, is_labeled=True) -> BipartiteData:
