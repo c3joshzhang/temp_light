@@ -50,7 +50,6 @@ def get_confident_idx(indices, uncertainty, threshold):
 
 
 def solve(inst, prediction, uncertainty, indices, max_iter):
-
     threshold = get_threshold(uncertainty)
     conf_idxs = get_confident_idx(indices, uncertainty, prediction, threshold)
     conf_vals = prediction[conf_idxs]

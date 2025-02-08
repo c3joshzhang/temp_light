@@ -47,7 +47,6 @@ def step(
     print_log=True,
     **kwargs,
 ):
-
     global GLOBAL_STEP
     model.eval() if eval else model.train()
 
@@ -143,7 +142,6 @@ def train(
     WANDB_LOG=False,
     model_dir="",
 ):
-
     global GLOBAL_STEP
     GLOBAL_STEP = 0
 
@@ -187,7 +185,6 @@ def train(
             )
 
             if epoch == 1 or round(val_log["val_acc"], 3) >= best_val_score:
-
                 best_val_score = round(val_log["val_acc"], 3)
 
                 # if model_dir:

@@ -73,7 +73,6 @@ def edl_loss(
 
 
 def loglikelihood_loss(y, alpha, device=DEVICE):
-
     S = torch.sum(alpha, dim=1, keepdim=True)
 
     loglikelihood_err = torch.sum((y - (alpha / S)) ** 2, dim=1, keepdim=True)
@@ -86,7 +85,6 @@ def loglikelihood_loss(y, alpha, device=DEVICE):
 
 
 def mse_loss(y, alpha, epoch_num, num_classes, annealing_step, lambda_, device=DEVICE):
-
     loglikelihood = loglikelihood_loss(y, alpha, device=DEVICE)
 
     kl_alpha = (alpha - 1) * (1 - y) + 1
@@ -105,7 +103,6 @@ def edl_digamma_loss(
     evidence_func=softplus_evidence,
     device=DEVICE,
 ):
-
     evidence = evidence_func(output)
     alpha = evidence + 1
 
@@ -133,7 +130,6 @@ def edl_log_loss(
     evidence_func=softplus_evidence,
     device=DEVICE,
 ):
-
     evidence = evidence_func(output)
     alpha = evidence + 1
 
@@ -161,7 +157,6 @@ def edl_mse_loss(
     evidence_func=softplus_evidence,
     device=DEVICE,
 ):
-
     evidence = evidence_func(output)
     alpha = evidence + 1
 
@@ -184,7 +179,6 @@ loss_funcs = {
 def get_evidence_and_uncertainty(
     outputs, preds, labels, num_classes=2, evidence_func=softplus_evidence
 ):
-
     match = torch.reshape(torch.eq(preds, labels).float(), (-1, 1))
     evidence = evidence_func(outputs)
     alpha = evidence + 1
@@ -229,7 +223,6 @@ def scoring(
     step_type,
     print_log,
 ):
-
     pred = torch.where(pred.view(-1) <= bias_threshold, zero, one)
     y = torch.where(y.view(-1) <= bias_threshold, zero, one)
 
@@ -295,7 +288,6 @@ class LossHandler(torch.nn.Module):
         self.n_steps = n_steps
 
     def forward(self, global_step, graph_idx, batch, output, y, binary_pred, step_type):
-
         target_output = output[batch.is_binary] if binary_pred else output
         target_y = y[batch.is_binary] if binary_pred else y
 

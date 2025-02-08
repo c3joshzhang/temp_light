@@ -80,19 +80,16 @@ def shift_model_info(info: ModelInfo, var_shift, con_shift, obj_shift):
     return info
 
 
-def augment_info(info: ModelInfo, prob=0.2, n=10):
+def augment_info(info: ModelInfo, prob=0.2):
     assert info.var_info.sols is not None, "info must contain solution at var_info.sols"
-    augs = []
-    for _ in range(n):
-        vals = info.var_info.sols[0, 1:]
-        shifted_vals = random_shift_binary_var_val(vals, info.var_info, prob=prob)
-        lhs = get_lhs_matrix(info.var_info.n, info.con_info)
-        var_shfit = shifted_vals - vals
-        con_shift = get_con_shift(lhs, var_shfit)
-        obj_shift = get_obj_shift(info.obj_info.ks, var_shfit)
-        a = shift_model_info(info, var_shfit, con_shift, obj_shift)
-        augs.append(a)
-    return augs
+    vals = info.var_info.sols[0, 1:]
+    shifted_vals = random_shift_binary_var_val(vals, info.var_info, prob=prob)
+    lhs = get_lhs_matrix(info.var_info.n, info.con_info)
+    var_shift = shifted_vals - vals
+    con_shift = get_con_shift(lhs, var_shift)
+    obj_shift = get_obj_shift(info.obj_info.ks, var_shift)
+    a = shift_model_info(info, var_shift, con_shift, obj_shift)
+    return a
 
 
 def parallel_augment_info(info: ModelInfo, prob=0.2, n=10, jobs=10) -> List[ModelInfo]:

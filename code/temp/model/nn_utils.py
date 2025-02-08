@@ -88,7 +88,6 @@ def reset_parameters_(model):
 
 
 def get_var_and_con_batch_idx(batch, num_var_nodes, num_con_nodes, device=DEVICE):
-
     if batch.batch is None:  # i.e., batch is a single pytorch data object
         var_batch_idx = torch.zeros(num_var_nodes, dtype=torch.long, device=device)
         con_batch_idx = torch.zeros(num_con_nodes, dtype=torch.long, device=device)

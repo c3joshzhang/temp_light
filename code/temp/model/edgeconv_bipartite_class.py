@@ -3,7 +3,6 @@ from .nn_utils import *
 
 # Variables to constrains.
 class ECVarConBipartiteLayer(MessagePassing):
-
     def __init__(
         self,
         edge_dim,
@@ -14,7 +13,6 @@ class ECVarConBipartiteLayer(MessagePassing):
         activation="relu",
         norm="graph",
     ):
-
         if aggr == "comb":
             aggr = MultiAggregation(
                 aggrs=["min", "max", "mean", "std"],
@@ -80,7 +78,6 @@ class ECConVarBipartiteLayer(MessagePassing):
     def __init__(
         self, edge_dim, dim, aggr="mean", dropout=0.0, activation="relu", norm="graph"
     ):
-
         if aggr == "comb":
             aggr = MultiAggregation(
                 aggrs=["min", "max", "mean", "std"],
@@ -142,7 +139,6 @@ class ECSimpleBipartiteLayer(MessagePassing):
     def __init__(
         self, edge_dim, dim, aggr="mean", dropout=0.0, activation="relu", norm="graph"
     ):
-
         if aggr == "comb":
             aggr = MultiAggregation(
                 aggrs=["min", "max", "mean", "std"],

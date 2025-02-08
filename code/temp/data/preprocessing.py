@@ -5,7 +5,6 @@ from temp.deprecate.global_vars import DEVICE
 
 
 def scale_node_degrees(data_obj):
-
     idx, data = data_obj
 
     if "is_transformed" in data:
@@ -30,7 +29,6 @@ def scale_node_degrees(data_obj):
 
 
 def node_degree_normalization(data):
-
     if data.num_con_nodes > 0:
         norm_con_degree = node_degree_scaling(
             data.edge_index_var, (data.num_var_nodes, data.num_con_nodes)
@@ -48,7 +46,6 @@ def node_degree_normalization(data):
 
 
 def Abc_normalization(data):
-
     # Normalization of constraint matrix
     norm_rhs, max_coeff = normalize_rhs(
         data.edge_index_var,
@@ -69,7 +66,6 @@ def Abc_normalization(data):
 
 
 def AbcNorm(data_obj):
-
     if isinstance(data_obj, tuple):
         idx, data = data_obj
     else:
@@ -105,7 +101,6 @@ class NormalizeRHS(MessagePassing):
         super(NormalizeRHS, self).__init__(aggr="max", flow="source_to_target")
 
     def forward(self, edge_index, coeff, rhs, size):
-
         abs_coeff = self.propagate(edge_index, edge_attr=coeff, size=size)
         abs_rhs = torch.abs(rhs)
         max_coeff = (
@@ -123,7 +118,6 @@ class NodeDegreeScaling(MessagePassing):
         super(NodeDegreeScaling, self).__init__(aggr="add", flow="source_to_target")
 
     def forward(self, edge_index, size):
-
         connected = torch.ones((size[0], 1), dtype=torch.float)
         node_degree = self.propagate(edge_index, connected=connected, size=size)
         norm_node_degree = node_degree / node_degree.max()
@@ -139,7 +133,6 @@ class NodeDegreeCalculation(MessagePassing):
         super(NodeDegreeCalculation, self).__init__(aggr="add", flow="source_to_target")
 
     def forward(self, edge_index, size):
-
         connected = torch.ones((size[0], 1), dtype=torch.float, device=DEVICE)
         total_degree = self.propagate(edge_index, connected=connected, size=size)
 
@@ -179,7 +172,6 @@ class SumViolation(MessagePassing):
         super(SumViolation, self).__init__(aggr="add", flow="source_to_target")
 
     def forward(self, violation, edge_index, size):
-
         output = self.propagate(edge_index, x=violation, size=size)
 
         return output

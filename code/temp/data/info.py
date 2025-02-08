@@ -2,7 +2,6 @@ from typing import Dict, List
 
 
 class VarInfo:
-
     def __init__(self, lbs: List[float], ubs: List[float], types: List[str]):
         assert len(lbs) == len(ubs) == len(types)
         self.lbs = [_handle_inf(l) for l in lbs]
@@ -48,7 +47,6 @@ class VarInfo:
 
 
 class ConInfo:
-
     ENUM_TO_OP = {"<=": 1, ">=": 2, "==": 3}
     OP_TO_ENUM = {1: "<=", 2: ">=", 3: "=="}
 
@@ -111,7 +109,6 @@ class ConInfo:
 
 
 class ObjInfo:
-
     def __init__(self, ks: Dict[int, float], sense: int):
         self.ks = ks
         self.sense = sense

@@ -82,7 +82,6 @@ def get_model(
     random_state,
     **kwargs,
 ):
-
     model_params = OrderedDict(
         gnn_type=network_name,
         num_layers=num_layers,
@@ -162,7 +161,6 @@ def get_model(
 
 
 def name_model(model_params, train_params):
-
     # Remove the below pop operations if these params are used or not fixed !!!
     if "var_feature_size" in model_params:
         model_params.pop("var_feature_size")
@@ -175,7 +173,6 @@ def name_model(model_params, train_params):
 
     lst = []
     for key, value in model_params.items():
-
         if value in [False, None]:
             continue
         if value is True:
@@ -184,7 +181,6 @@ def name_model(model_params, train_params):
             lst.append(str(value))
 
     for key, value in train_params.items():
-
         if value in [False, None, "nonorm"]:
             continue
         if value is True:

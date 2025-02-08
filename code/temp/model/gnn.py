@@ -64,9 +64,7 @@ class MLP(torch.nn.Module):
         )
 
     def forward(self, x, batch_idx):
-
         for block in self.nn:
-
             if isinstance(block, GraphNorm):
                 x = block(x, batch_idx)
             else:
@@ -217,7 +215,6 @@ class SimpleMIPGNN(BaseModel):
         reset_parameters_(self)
 
     def forward(self, batch):
-
         num_var_nodes = batch.num_var_nodes
         num_con_nodes = batch.num_con_nodes
 
@@ -347,7 +344,6 @@ class MIPGNN(BaseModel):
         reset_parameters_(self)
 
     def forward(self, batch):
-
         num_var_nodes = batch.num_var_nodes
         num_con_nodes = batch.num_con_nodes
 

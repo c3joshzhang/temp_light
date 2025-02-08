@@ -27,7 +27,6 @@ from gurobipy import GRB
 
 
 def get_instance_names(instance_path, instance_file_type):
-
     problem_names = sorted(
         [
             name.replace(instance_file_type, "")
@@ -42,7 +41,6 @@ def get_instance_names(instance_path, instance_file_type):
 
 
 def get_solved_instance_names(solution_path):
-
     solved_probs = sorted(
         [
             name.replace("_pool.npz", "")
@@ -131,7 +129,6 @@ def presolve(model, instance_name, instance_path):
 
 
 def get_presolve_stats(instance_path):
-
     # Reduction rate in number of variables and constraints after presolve
     with open(instance_path.joinpath("presolve_stats.txt"), "r") as f:
         presolve_stats = f.read().splitlines()
@@ -167,7 +164,6 @@ def get_presolve_stats(instance_path):
 def inst_to_graph_data(
     instance_name, instance_file_type, instance_path, get_presolved=True
 ):
-
     model = gp.read(str(instance_path.joinpath(instance_name + instance_file_type)))
     process_time = time.time()
 
@@ -192,7 +188,6 @@ def inst_to_graph_data(
 
 
 def create_graph_and_data_object(args):
-
     (
         prob_name,
         dt_type,
@@ -225,9 +220,7 @@ def create_graph_and_data_object(args):
     graph, _ = get_bipartite_graph(model)
 
     if dt_type in ["train", "val"]:
-
         if Path(solution_file_path).exists():
-
             graph = get_labeled_graph(graph, instance_name, model, solution_path)
             is_labeled = True
 
@@ -262,13 +255,11 @@ def main(
     write_graph: bool = False,
     n_threads: int = cpu_count(),
 ) -> None:
-
     instance_file_type = INSTANCE_FILE_TYPES[prob_name]
     dtypes = np.array(["train", "val", "test", "transfer"])
     task_args = []
 
     for i, dt_name in enumerate(dt_names):
-
         dt_type = dtypes[
             [
                 "train" in dt_name,
@@ -318,7 +309,6 @@ def main(
             )
 
     if len(task_args) > 0:
-
         print(
             f">> {len(task_args)} data objects in total to be created for {prob_name} {dt_names}..."
         )
@@ -408,7 +398,6 @@ def generate_instances_parallel(
 
 
 if __name__ == "__main__":
-
     PROB_NAMES = list(TRAIN_DT_NAMES.keys())
 
     parser = argparse.ArgumentParser()

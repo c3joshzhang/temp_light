@@ -142,7 +142,6 @@ class SAGESimpleBipartiteLayer(MessagePassing):
         self.dropout = Dropout(dropout)
 
     def forward(self, source, target, edge_index, edge_attr, batch_idx_tuple, size):
-
         edge_embedding = self.edge_encoder(edge_attr)
         out = self.propagate(edge_index, x=source, size=size, edge_attr=edge_embedding)
         out = self.lin_l(out)

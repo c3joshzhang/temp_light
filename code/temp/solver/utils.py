@@ -63,7 +63,6 @@ def repair(inst, fixed: set, bounds: dict):
     freed = set()
     while iis_var_names := get_iis_vars(inst):
         for n in iis_var_names:
-
             if n not in name_to_idx:
                 continue
 

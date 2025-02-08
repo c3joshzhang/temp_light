@@ -63,3 +63,9 @@ def parallel_generate_solutions(model_path: str, n_jobs: int):
         )
         for i in range(n_jobs)
     )
+
+
+def sequential_generate_solutions(model_path):
+    model_files_paths = [p for p in os.listdir(model_path) if p.endswith(".lp")]
+    model_files_paths = [os.path.join(model_path, p) for p in model_files_paths]
+    generate_solutions(model_files_paths)

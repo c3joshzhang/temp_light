@@ -13,7 +13,6 @@ class GINVarConBipartiteLayer(MessagePassing):
         activation="relu",
         norm="graph",
     ):
-
         if aggr == "comb":
             aggr = MultiAggregation(
                 aggrs=["min", "max", "mean", "std"],
@@ -81,7 +80,6 @@ class GINConVarBipartiteLayer(MessagePassing):
     def __init__(
         self, edge_dim, dim, aggr="mean", dropout=0.0, activation="relu", norm="graph"
     ):
-
         if aggr == "comb":
             aggr = MultiAggregation(
                 aggrs=["min", "max", "mean", "std"],
@@ -146,7 +144,6 @@ class GINSimpleBipartiteLayer(MessagePassing):
     def __init__(
         self, edge_dim, dim, aggr="mean", dropout=0.0, activation="relu", norm="graph"
     ):
-
         if aggr == "comb":
             aggr = MultiAggregation(
                 aggrs=["min", "max", "mean", "std"],

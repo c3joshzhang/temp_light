@@ -4,8 +4,8 @@ from gurobipy import GRB
 
 
 def setcover(
-    n_rows: int = 100,
-    n_cols: int = 200,
+    n_rows: int = 128,
+    n_cols: int = 256,
     density: float = 0.1,
     min_cost: int = 5,
     max_cost: int = 15,

@@ -16,7 +16,6 @@ from utils import *
 from utils import get_co_datasets, get_model
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--prob_name", type=str, default="indset", choices=PROB_NAMES)
     parser.add_argument(

@@ -22,7 +22,6 @@ from utils import *
 
 
 def load_model(config, model_dir, data=None):
-
     if not data is None:
         if type(data) is GraphDataset:
             data = data[0][1]
@@ -44,7 +43,6 @@ def load_model(config, model_dir, data=None):
 
 
 def scoring(loss, loss_tuples, bias_tuples, pred, y, bias_threshold, step_type):
-
     pred = pred.round().long()
     # y = y.round().long()
 
@@ -79,7 +77,6 @@ def scoring(loss, loss_tuples, bias_tuples, pred, y, bias_threshold, step_type):
 
 
 def get_uncertainty(outputs, num_classes=2, evidence_func_name="softplus"):
-
     if evidence_func_name in evidence_funcs:
         evidence_func = evidence_funcs[evidence_func_name]
         evidence = evidence_func(outputs)
@@ -94,7 +91,6 @@ def get_uncertainty(outputs, num_classes=2, evidence_func_name="softplus"):
 
 
 def get_prediction(config, model, data):
-
     model.eval()
 
     with torch.no_grad():
@@ -132,14 +128,12 @@ def get_prediction(config, model, data):
 
 
 def get_uncertainty_params(config, model, dt, threshold_type="median"):
-
     val_u_mean_lst = []
     val_confident_acc_lst = []
     val_bound_err_lst = []
     val_confident_ratio = []
 
     for graph_idx, data in tqdm(dt):
-
         if config["abc_norm"]:
             data = AbcNorm(data)
 
@@ -189,7 +183,6 @@ def get_uncertainty_params(config, model, dt, threshold_type="median"):
 
 
 def get_uncertainty_metrics(data, pred, uncertainty, target, threshold_type="median"):
-
     correct_pred_uncertainty = (
         np.median(uncertainty[target == pred])
         if threshold_type == "median"
@@ -214,7 +207,6 @@ def get_uncertainty_metrics(data, pred, uncertainty, target, threshold_type="med
 
 
 def cplex_solve(instance_cpx, timelimit, n_threads):
-
     instance_cpx.set_log_stream(None)
     instance_cpx.set_warning_stream(None)
     instance_cpx.set_results_stream(None)
@@ -244,7 +236,6 @@ def cplex_solve(instance_cpx, timelimit, n_threads):
 def reduction_then_solve(
     instance_cpx, timelimit, prediction, confident_idx, binary_idx
 ):
-
     if len(confident_idx) > 0:
         assignments = list(
             map(
@@ -286,7 +277,6 @@ def uncertainty_based_reduction(
     min_unc_threshold,
     n_iter,
 ):
-
     # numerical precision of min_unc_threshold might be problematic for some of problems (especially setcover) and models,
     #  so, r is clipped to be in (0.4, 0.55)
     i = 0
@@ -313,7 +303,6 @@ def uncertainty_based_reduction(
     log_df_lst = []
 
     for i in range(n_iter):
-
         q = max_q - dq * i
         unc_t = np.quantile(uncertainty, q)
 
@@ -346,7 +335,6 @@ def uncertainty_based_reduction(
 
 
 def save_reduction_log_df(log_df_lst, log_path, instance_name):
-
     for i, df in enumerate(log_df_lst):
         if i > 0:
             df["t"] += log_df_lst[i - 1].iloc[-1]["t"]
@@ -356,7 +344,6 @@ def save_reduction_log_df(log_df_lst, log_path, instance_name):
 
 
 def node_selection(instance_cpx, sol, timelimit, prediction, binary_idx, var_scores):
-
     if not sol is None:
         binary_sol = sol[binary_idx]
         binary_idx, binary_sol = (
@@ -394,7 +381,6 @@ def node_selection(instance_cpx, sol, timelimit, prediction, binary_idx, var_sco
 
 
 class NodeSelectionCB(NodeCallback):
-
     def __call__(self):
         if self.get_num_nodes() == 0:
             return
@@ -415,7 +401,6 @@ class NodeSelectionCB(NodeCallback):
 
 
 class AttachDataCB(BranchCallback):
-
     def __call__(self):
         time_start = time.time()
 
@@ -454,7 +439,6 @@ def repair(
     confident_idx,
     repair_timelimit,
 ):
-
     print("REPAIR...")
     feasible_confident_idx = binary_idx[confident_idx]
 
@@ -475,7 +459,6 @@ def repair(
     print(">>> # Cons with fixed val cuts:", docpx_instance.number_of_constraints)
 
     while repair_timelimit > 0 and len(feasible_confident_idx) > 0:
-
         rt = time.time()
         cr_result = ConflictRefiner().refine_conflict(
             docpx_instance, display=True, time_limit=repair_timelimit
@@ -531,7 +514,6 @@ def repair(
 
 
 def solve_with_warmstart(instance_cpx, timelimit, binary_idx, sol):
-
     binary_sol = sol[binary_idx]
     binary_idx, binary_sol = (
         binary_idx.astype(int).tolist(),
@@ -564,12 +546,10 @@ def get_confident_pred_idx(uncertainty, prediction, uncertainty_threshold, binar
 def get_confident_pred_acc_coverage(
     decisions, actuals, uncertainties, thresholds, dataset
 ):
-
     confident_acc = []
     confident_coverage = []
 
     for t in thresholds:
-
         acc = []
         coverage = []
 
@@ -605,7 +585,6 @@ def opt_with_gnn(
     instance_path,
     log_path,
 ):
-
     pred_time = time.time()
 
     if config["abc_norm"]:
@@ -633,22 +612,24 @@ def opt_with_gnn(
     solution = None
 
     if "R" in strategy:
-
         rst = time.time()
         log_df_lst = []
 
         if "UPR" in strategy:
             print(f">>> Starting UPR...")
-            solution, reduction_result, iter_results, log_df_lst = (
-                uncertainty_based_reduction(
-                    instance_cpx,
-                    reduction_timelimit,
-                    prediction,
-                    binary_idx,
-                    uncertainty,
-                    uncertainty_threshold,
-                    n_iter=5,
-                )
+            (
+                solution,
+                reduction_result,
+                iter_results,
+                log_df_lst,
+            ) = uncertainty_based_reduction(
+                instance_cpx,
+                reduction_timelimit,
+                prediction,
+                binary_idx,
+                uncertainty,
+                uncertainty_threshold,
+                n_iter=5,
             )
             print(f">>> {instance_name}: UPR completed.")
             for iter_result in iter_results:
@@ -708,9 +689,7 @@ def opt_with_gnn(
         # print("Reduction result:", result)
 
     if "NS" in strategy:
-
         if "UPR" in strategy:
-
             # Deleting the cuts added by UPR so that the original problem instance is restored for global search with NS.
             con_names = instance_cpx.linear_constraints.get_names()
             reduction_cuts = [c for c in con_names if "fixed_val" in c]
@@ -745,7 +724,6 @@ def opt_with_gnn(
 
 
 def experiment_opt_with_gnn(args):
-
     (
         model,
         instance_name,
@@ -763,9 +741,12 @@ def experiment_opt_with_gnn(args):
         val_bound_error_stats,
     ) = args
 
-    val_bound_err_min, val_bound_err_mean, val_bound_err_max, val_bound_err_std = (
-        val_bound_error_stats
-    )
+    (
+        val_bound_err_min,
+        val_bound_err_mean,
+        val_bound_err_max,
+        val_bound_err_std,
+    ) = val_bound_error_stats
 
     result_df_file_path = log_path.joinpath(f"{instance_name}.csv")
 
@@ -823,22 +804,24 @@ def experiment_opt_with_gnn(args):
     sol = None
 
     if "R" in strategy:
-
         rst = time.time()
         log_df_lst = []
 
         if "UPR" in strategy:
             print(f">>> {instance_name}: Starting UPR...")
-            sol, reduction_result, iter_results, log_df_lst = (
-                uncertainty_based_reduction(
-                    instance_cpx,
-                    reduction_timelimit,
-                    prediction,
-                    binary_idx,
-                    uncertainty,
-                    uncertainty_threshold,
-                    n_iter=5,
-                )
+            (
+                sol,
+                reduction_result,
+                iter_results,
+                log_df_lst,
+            ) = uncertainty_based_reduction(
+                instance_cpx,
+                reduction_timelimit,
+                prediction,
+                binary_idx,
+                uncertainty,
+                uncertainty_threshold,
+                n_iter=5,
             )
             print(f">>> {instance_name}: UPR completed.")
             for iter_result in iter_results:
@@ -898,9 +881,7 @@ def experiment_opt_with_gnn(args):
         # print("Reduction result:", result)
 
     if "NS" in strategy:
-
         if "UPR" in strategy:
-
             # Deleting the cuts added by UPR so that the original problem instance is restored for global search with NS.
             con_names = instance_cpx.linear_constraints.get_names()
             reduction_cuts = [c for c in con_names if "fixed_val" in c]
@@ -940,15 +921,17 @@ def experiment_opt_with_gnn(args):
     result["val_bound_std"] = val_bound_err_std
 
     if not incumbent is None:  # i.e., data is labeled
-
         mask = np.ones(len(prediction), dtype=bool)
         mask[confident_idx] = False
         uncertain_sum = prediction[mask].sum()
         true_sum = incumbent[mask].sum()
         sol_diff = np.nan if sol is None else 1 - (incumbent == sol[binary_idx]).mean()
-        correct_u_mean, incorrect_u_mean, confident_ratio_mean, confident_acc_mean = (
-            get_uncertainty_metrics(data, prediction, uncertainty, incumbent)
-        )
+        (
+            correct_u_mean,
+            incorrect_u_mean,
+            confident_ratio_mean,
+            confident_acc_mean,
+        ) = get_uncertainty_metrics(data, prediction, uncertainty, incumbent)
 
         result["pred_bias"] = prediction.mean()
         result["true_bias"] = incumbent.mean()
@@ -990,12 +973,10 @@ def experiment(
     strategies: list[str],
     n_threads: int = N_THREADS,
 ):
-
     val_dt = get_co_datasets(prob_name, [val_dt_name], [val_size], False)[0]
     models = []
 
     for i, config in enumerate(model_configs):
-
         model_dir = PROJECT_DIR.joinpath(
             "trained_models", config["prob_name"], train_dt_name
         )
@@ -1044,7 +1025,6 @@ def experiment(
             target_dataset_probs.append(target_instances)
 
         for model_idx in range(len(models)):
-
             # reading model config and params derived from validation results
             config = model_configs[model_idx]
             print(">>>>", model_idx, config)
@@ -1072,7 +1052,6 @@ def experiment(
                 target_instances = target_dataset_probs[target_dt_idx]
 
                 for strategy in strategies:
-
                     data_path = DATA_DIR.joinpath(
                         "graphs", prob_name, target_dt_name, "processed"
                     )
@@ -1124,7 +1103,6 @@ def experiment(
 
 
 if __name__ == "__main__":
-
     prob_name = PROB_NAMES[-3]
     train_dt_name = TRAIN_DT_NAMES[prob_name]
     val_dt_name = VAL_DT_NAMES[prob_name]
@@ -1179,7 +1157,6 @@ if __name__ == "__main__":
     model_configs = []
 
     for config in param_grid:
-
         if config["pred_loss_type"] == "bce" and not config["edl_lambda"] is None:
             continue
         if not config["pred_loss_type"] == "bce" and config["edl_lambda"] is None:

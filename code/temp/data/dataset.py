@@ -1,13 +1,15 @@
 import itertools
 import os
 import random
+from functools import lru_cache
 from typing import List
 
+import dill
 import gurobipy as gp
 import numpy as np
 import torch
 from joblib import Parallel, delayed
-from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.data import Data, Dataset, InMemoryDataset
 from tqdm import tqdm
 
 from .graph import add_label, get_bipartite_graph
@@ -28,14 +30,57 @@ class BipartiteData(Data):
         return 0
 
 
+class AugCache:
+    def __init__(self, info, name, augment=None, size=5, life=10):
+        self.info = info
+        self.name = name
+
+        self.data = info_to_data(info)
+        self.data.instance_name = name
+
+        self.augment = augment
+        self.size = size
+        self.life = life
+        self.augmented = [[0, None] for _ in range(size)]
+
+    def get(self):
+        if self.augment is None:
+            return self.data
+
+        idx = random.randint(-1, len(self.augmented) - 1)
+        if idx == -1:
+            return self.data
+
+        counter, aug = self.augmented[idx]
+        if counter == self.life:
+            self.augmented[idx][1] = None
+            self.augmented[idx][0] = 0
+
+        if aug is None:
+            a = self.augment(self.info)
+            d = info_to_data(a)
+            d.instance_name = f"aug_{idx}_{self.name}"
+            self.augmented[idx][1] = d
+
+        self.augmented[idx][0] += 1
+        return self.augmented[idx][1]
+
+
+import io
+from contextlib import redirect_stdout
+
+
 class ModelGraphDataset(InMemoryDataset):
-    def __init__(
-        self, root, transform=None, pre_transform=None, pre_filter=None, augment=None
-    ):
+    def __init__(self, root, augment=None, *args, **kwargs):
         self._inst_names = self._get_inst_names(root)
         self._augment = augment
-        super().__init__(root, transform, pre_transform, pre_filter)
-        self.load(self.processed_paths[0])
+        self._augment_cache = [None for i in range(len(self._inst_names))]
+        self._infos = None
+        self._names = None
+        super().__init__(root, *args, **kwargs)
+
+    def len(self):
+        return len(self._inst_names)
 
     @property
     def inst_names(self):
@@ -49,41 +94,48 @@ class ModelGraphDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ["data.pt"]
+        return ["infos.bin", "names.bin"]
 
     def process(self):
-
         raw_names = []
         raw_infos = []
-        for n in self._inst_names:
-            m = gp.read(os.path.join(self.root, f"{n}.lp"))
-            s = np.load(os.path.join(self.root, f"{n}.npz"))["solutions"]
+
+        for n in tqdm(self._inst_names, "(model, solution) => info"):
+            with redirect_stdout(io.StringIO()):
+                m = gp.read(os.path.join(self.root, f"{n}.lp"))
+                s = np.load(os.path.join(self.root, f"{n}.npz"))["solutions"]
             info = ModelInfo.from_model(m)
             info.var_info.sols = s
             raw_names.append(n)
             raw_infos.append(info)
 
-        aug_names = []
-        aug_infos = []
-        if self._augment is not None:
-            for n, info in tqdm(
-                zip(raw_names, raw_infos), desc="model info augmentation"
-            ):
-                cur_aug = self._augment(info)
-                aug_infos.extend(cur_aug)
-                aug_names.extend(f"aug_{i}_{n}" for i in range(len(cur_aug)))
+        self._infos = raw_infos
+        self._names = raw_names
 
-        processed_names = raw_names + aug_names
-        processed = sequential_info_to_data(raw_infos + aug_infos)
-        for n, p in zip(processed_names, processed):
-            p.instance_name = n
+        with open(self.processed_paths[0], "wb") as f:
+            dill.dump(raw_infos, f)
 
-        random.shuffle(processed)
-        torch.save(self.collate(processed), self.processed_paths[0])
+        with open(self.processed_paths[1], "wb") as f:
+            dill.dump(raw_names, f)
 
     def get(self, idx):
-        data = super().get(idx)
-        return idx, data
+        infos = self._ensure_loaded_infos()
+        names = self._ensure_loaded_names()
+        if self._augment_cache[idx] is None:
+            self._augment_cache[idx] = AugCache(infos[idx], names[idx], self._augment)
+        return idx, self._augment_cache[idx].get()
+
+    def _ensure_loaded_infos(self):
+        if self._infos is None:
+            with open(self.processed_paths[0], "rb") as f:
+                self._infos = dill.load(f)
+        return self._infos
+
+    def _ensure_loaded_names(self):
+        if self._names is None:
+            with open(self.processed_paths[1], "rb") as f:
+                self._names = dill.load(f)
+        return self._names
 
     @staticmethod
     def _get_inst_names(root):
@@ -160,7 +212,6 @@ def create_data_object(graph, is_labeled=True) -> BipartiteData:
 
     for node, node_data in graph.nodes(data=True):
         if node_data["bipartite"] == 0:
-
             idx = node_data["index"]
             index_var.append(0)
 

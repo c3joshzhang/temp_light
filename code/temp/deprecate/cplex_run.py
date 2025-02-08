@@ -80,7 +80,6 @@ def solveIP(
     do_phase1,
     do_phase2,
 ):
-
     cpx_instance.parameters.timelimit.set(timelimit)
     cpx_instance.parameters.threads.set(threads)
     cpx_instance.parameters.mip.strategy.file.set(2)
@@ -173,7 +172,6 @@ def search(
     do_phase1=True,
     do_phase2=True,
 ):
-
     results_path = out_path.joinpath(f"{instance_name}_result.log")
     npz_path = out_path.joinpath(instance_name + "_pool.npz")
 
@@ -227,7 +225,6 @@ def search(
 
 
 def cplex_run(args):
-
     (
         timelimit,
         file_name,
@@ -299,7 +296,6 @@ def cplex_run(args):
 def main(
     prob_name: str, dt_name: str, n_instances: int, timelimit: float, n_threads: int
 ):
-
     instance_file_type = INSTANCE_FILE_TYPES[prob_name]
 
     instance_path = DATA_DIR.joinpath("instances", prob_name, dt_name)
@@ -353,7 +349,6 @@ def main(
         p.close()
 
     for log_file in glob.glob(str(solution_path.joinpath("*.log"))):
-
         with open(log_file, "r") as f:
             r = f.read()
 
@@ -362,7 +357,6 @@ def main(
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-p", "--prob_name", type=str, default="indset", choices=PROB_NAMES
