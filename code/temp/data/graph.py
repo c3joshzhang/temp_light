@@ -14,7 +14,7 @@ def get_bipartite_graph(info):
     var_lb = [b for b in info.var_info.lbs]
     var_ub = [b for b in info.var_info.ubs]
     obj_multiplier = info.obj_info.sense
-    obj_coeff = [info.obj_info.ks[i] for i in range(info.var_info.n)]
+    obj_coeff = [info.obj_info.ks.get(i, 0) for i in range(info.var_info.n)]
     obj_coeff = obj_multiplier * np.array(obj_coeff)
 
     n_cons = info.con_info.n

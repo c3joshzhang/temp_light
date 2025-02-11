@@ -26,6 +26,7 @@ class VarInfo:
 
     @sols.setter
     def sols(self, s):
+        # solution and objective
         assert len(s.shape) == 2
         assert s.shape[1] == self.n + 1, (s.shape, self.n)
         self._sols = s

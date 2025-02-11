@@ -223,7 +223,7 @@ def create_data_object(graph, is_labeled=True) -> BipartiteData:
             lb[idx] = node_data["lb"]
             ub[idx] = node_data["ub"]
 
-            assert ub[idx] >= lb[idx]
+            assert ub[idx] >= lb[idx], (ub[idx], lb[idx])
 
             if is_labeled:
                 w_bias = node_data["weighted_bias"]
