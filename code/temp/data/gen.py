@@ -44,6 +44,7 @@ def generate_solutions(model_paths: List[str], n=10, lic=None):
 
         if model.SolCount == 0:
             os.remove(model_path)
+            return
 
         for i in range(model.SolCount):
             # TODO: setting solution number actually takes long time try to optimize
