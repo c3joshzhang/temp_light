@@ -4,7 +4,7 @@ import random
 from functools import lru_cache
 from typing import List
 
-import dill
+import pickle
 import gurobipy as gp
 import numpy as np
 import torch
@@ -68,15 +68,13 @@ class AugCache:
 
 import io
 from contextlib import redirect_stdout
-
+from functools import cached_property
 
 class ModelGraphDataset(InMemoryDataset):
     def __init__(self, root, augment=None, *args, **kwargs):
         self._inst_names = self._get_inst_names(root)
         self._augment = augment
         self._augment_cache = [None for i in range(len(self._inst_names))]
-        self._infos = None
-        self._names = None
         super().__init__(root, *args, **kwargs)
 
     def len(self):
@@ -94,48 +92,28 @@ class ModelGraphDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ["infos.bin", "names.bin"]
+        return [f"{n}.pkl" for n in self._inst_names]
 
     def process(self):
-        raw_names = []
-        raw_infos = []
+        chunk_size_limit = 500
+        chunk = ([], [], [])
+        for i, n in tqdm(list(enumerate(self._inst_names)), "(model, solution) => info"):
+            if len(chunk[0]) >= chunk_size_limit or i == len(self._inst_names) - 1:
+                parallel_to_info(*chunk)
+                chunk = ([], [], [])
+            chunk[0].append(os.path.join(self.root, f"{n}.lp"))
+            chunk[1].append(os.path.join(self.root, f"{n}.npz"))
+            chunk[2].append(self.processed_paths[i])
 
-        for n in tqdm(self._inst_names, "(model, solution) => info"):
-            with redirect_stdout(io.StringIO()):
-                m = gp.read(os.path.join(self.root, f"{n}.lp"))
-                s = np.load(os.path.join(self.root, f"{n}.npz"))["solutions"]
-            info = ModelInfo.from_model(m)
-            info.var_info.sols = s
-            raw_names.append(n)
-            raw_infos.append(info)
-
-        self._infos = raw_infos
-        self._names = raw_names
-
-        with open(self.processed_paths[0], "wb") as f:
-            dill.dump(raw_infos, f)
-
-        with open(self.processed_paths[1], "wb") as f:
-            dill.dump(raw_names, f)
 
     def get(self, idx):
-        infos = self._ensure_loaded_infos()
-        names = self._ensure_loaded_names()
         if self._augment_cache[idx] is None:
-            self._augment_cache[idx] = AugCache(infos[idx], names[idx], self._augment)
+            with open(self.processed_paths[idx], "rb") as f:
+                info = pickle.load(f)
+                name = os.path.basename(self.processed_paths[idx])
+                name = os.path.splitext(name)[0]
+            self._augment_cache[idx] = AugCache(info, name, self._augment)
         return idx, self._augment_cache[idx].get()
-
-    def _ensure_loaded_infos(self):
-        if self._infos is None:
-            with open(self.processed_paths[0], "rb") as f:
-                self._infos = dill.load(f)
-        return self._infos
-
-    def _ensure_loaded_names(self):
-        if self._names is None:
-            with open(self.processed_paths[1], "rb") as f:
-                self._names = dill.load(f)
-        return self._names
 
     @staticmethod
     def _get_inst_names(root):
@@ -145,6 +123,24 @@ class ModelGraphDataset(InMemoryDataset):
         assert set(mp[:-2] == sp[:-3] for mp, sp in zip(mdl_paths, sol_paths))
         lp_suffix_len = len(".lp")
         return [p[:-lp_suffix_len] for p in mdl_paths]
+
+
+def to_info(lp_path, npz_path, save_path):
+    with redirect_stdout(io.StringIO()):
+        m = gp.read(lp_path)
+        s = np.load(npz_path)["solutions"]
+    info = ModelInfo.from_model(m)
+    info.var_info.sols = s
+    with open(save_path, "wb") as f:
+        pickle.dump(info, f)
+
+
+def parallel_to_info(lp_paths, npz_paths, save_paths, n_jobs=10):
+    assert len(lp_paths) == len(npz_paths) == len(save_paths)
+    Parallel(n_jobs=n_jobs)(
+        delayed(to_info)(lp_p, npz_p, sp)
+        for lp_p, npz_p, sp in zip(lp_paths, npz_paths, save_paths)
+    )
 
 
 def info_to_data(info: ModelInfo):
