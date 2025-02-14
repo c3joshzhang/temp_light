@@ -7,27 +7,20 @@ import numpy as np
 import torch
 from joblib import Parallel, delayed
 
-from .info import ConInfo, ModelInfo, VarInfo
+from temp.data.info import ConInfo, ModelInfo, VarInfo
 
 
-def get_lhs_matrix(n_var: int, con_info: ConInfo) -> torch.Tensor:
-    n_con = con_info.n
-    shape = (n_con, n_var)
+def get_lhs_matrix(n_var: int, con_info: ConInfo):
+    shape = (con_info.n, n_var)
 
-    idxs = [[], []]
-    vals = []
+    row_idxs = [np.full(len(p), i, dtype=np.int64) for i, p in enumerate(con_info.lhs_p)]
+    row_idxs = np.concatenate(row_idxs)
+    col_idxs = np.concatenate(con_info.lhs_p)
 
-    for con_idx in range(n_con):
-        var_idxs = con_info.lhs_p[con_idx]
-        var_cefs = con_info.lhs_c[con_idx]
-        for var_idx, var_cef in zip(var_idxs, var_cefs):
-            idxs[0].append(con_idx)
-            idxs[1].append(var_idx)
-            vals.append(var_cef)
-
+    vals = np.concatenate(con_info.lhs_c)
+    idxs = np.stack([row_idxs, col_idxs])
     lhs = torch.sparse_coo_tensor(idxs, vals, shape)
     return lhs
-
 
 def random_shift_binary_var_val(vals, var_info: VarInfo, prob: float = 0.2):
     shifted = vals.copy()
@@ -111,24 +104,31 @@ def add_objective_constraint(info, ratio=0.01):
 def add_redundant_constraint(info: ModelInfo, prob=0.2, ratio=0.1):
     vals = info.var_info.sols[0, 1:]
     n_redundant = int(info.con_info.n * ratio)
-    rand_lhs_ps = np.random.random((n_redundant, len(vals)))
-    rand_lhs_cs = np.random.random((n_redundant, len(vals)))
-    for iter_i in range(rand_lhs_ps.shape[0]):
-        lhs_p = []
-        lhs_c = []
-        for var_i in range(rand_lhs_ps.shape[1]):
-            if rand_lhs_ps[iter_i, var_i] >= prob:
-                continue
-            lhs_p.append(var_i)
-            lhs_c.append(rand_lhs_cs[iter_i, var_i])
-        rhs = sum(vals[i] * c for i, c in zip(lhs_p, lhs_c))
-        op_type = random.choice(["<=", ">="])
-        perturb_ratio = random.random() if op_type == "<=" else -random.random()
-        perturb_rhs = (1 + perturb_ratio) * rhs
-        info.con_info.lhs_p.append(lhs_p)
-        info.con_info.lhs_c.append(lhs_c)
-        info.con_info.rhs.append(perturb_rhs)
-        info.con_info.types.append(info.con_info.ENUM_TO_OP[op_type])
+    n_vars_in_c = int(len(vals) * prob)
+    rand_lhs_ps = np.random.choice(len(vals), (n_redundant, n_vars_in_c))
+    rand_lhs_cs = np.random.random(rand_lhs_ps.shape)
+
+    added_con_info = ConInfo([], [], [], [])
+    ge = ConInfo.ENUM_TO_OP[">="]
+    le = ConInfo.ENUM_TO_OP["<="]
+    added_con_types = np.random.choice([ge, le], n_redundant)
+    perturb_ratios = np.random.random(n_redundant)
+    perturb_ratios[added_con_types == le] *= -1
+
+    added_con_info.lhs_p = rand_lhs_ps.tolist()
+    added_con_info.lhs_c = rand_lhs_cs.tolist()
+    added_con_info.types = added_con_types.tolist()
+    added_con_info.rhs = [None] * n_redundant
+    lhs_m = get_lhs_matrix(len(vals), added_con_info)
+
+    rhs = lhs_m @ torch.as_tensor(vals)
+    rhs = (torch.as_tensor(perturb_ratios) + 1) * rhs
+    added_con_info.rhs = rhs.tolist()
+
+    info.con_info.lhs_p.extend(added_con_info.lhs_p)
+    info.con_info.lhs_c.extend(added_con_info.lhs_c)
+    info.con_info.rhs.extend(added_con_info.rhs)
+    info.con_info.types.extend(added_con_info.types)
     info.var_info.sols = info.var_info.sols[:1]
     return info
 
@@ -179,14 +179,9 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
 
         aux_var_idx = n_old_var + n_aux_var
         n_aux_var += 1
-        # print(info.var_info.n)
-        # print(aux_lhs_p[-1])
-        # print(aux_lhs_c[-1])
-        # print(info.con_info.lhs_p[i])
+
         info.con_info.lhs_p[i] = [lhs_p[j] for j in keep]
         info.con_info.lhs_p[i].append(aux_var_idx)
-        # print(info.con_info.lhs_p[i])
-        # print("^"*78)
         info.con_info.lhs_c[i] = [lhs_c[j] for j in keep]
         info.con_info.lhs_c[i].append(1.0)
 
@@ -277,28 +272,3 @@ def parallel_augment_info(info: ModelInfo, prob=0.2, n=10, jobs=10) -> List[Mode
         delayed(augment_info)(info, prob, n_per_job) for _ in range(jobs)
     )
     return list(itertools.chain(*augs))
-
-
-# def shift_model(model, var_shift, rhs_shift):
-#     # ONLY USED FOR VALIDATION
-#     var_shift = var_shift.squeeze() if len(var_shift.shape) == 2 else var_shift
-
-#     shifted = model.copy()
-#     vs = shifted.getVars()
-#     # TODO: allow C and I variable bound change
-#     for v, v_shift in zip(vs, var_shift):
-#         if v_shift == 0:
-#             continue
-#         if v_shift > 0:
-#             v.setAttr("lb", 1)
-#             continue
-#         if v_shift < 0:
-#             v.setAttr("ub", 0)
-#             continue
-
-#     cs = shifted.getConstrs()
-#     for c, c_shift in zip(cs, rhs_shift):
-#         c.setAttr("rhs", c.rhs + c_shift)
-
-#     shifted.update()
-#     return shifted

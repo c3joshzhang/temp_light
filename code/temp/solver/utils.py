@@ -25,6 +25,15 @@ def unfix_var(inst, idxs, bounds):
         vs[i].setAttr("ub", ub)
 
 
+def set_hints(inst, hints):
+    vs = inst.getVars()
+    for i, (val, pri) in hints:
+        if 0 <= pri <= 1:
+            pri = int(pri * 100)
+        vs[i].setAttr("VarHintVal", val)
+        vs[i].setAttr("VarHintPri", pri)
+
+
 def get_iis_vars(inst):
     try:
         inst.computeIIS()

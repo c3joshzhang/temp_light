@@ -30,6 +30,11 @@ def generate_solutions(model_paths: List[str], n=10, lic=None):
     for model_path in model_paths:
         model = gp.read(model_path, env=gp.Env(params=lic) if lic else None)
         model.setParam("OutputFlag", 0)
+
+        model.setParam("NoRelHeurTime", 10)
+        model.setParam("TimeLimit", 120)
+        model.setParam("MIPGap", 1e-3)
+
         model.setParam("PoolSolutions", n)
         model.setParam("PoolSearchMode", 2)
         model.optimize()
@@ -52,14 +57,16 @@ def generate_solutions(model_paths: List[str], n=10, lic=None):
             np.savez(f, solutions=obj_val_and_sols)
 
 
-def parallel_generate_solutions(model_path: str, n_jobs: int):
+def parallel_generate_solutions(model_path: str, n_jobs: int, *args, **kwargs):
     model_files_paths = [p for p in os.listdir(model_path) if p.endswith(".lp")]
     model_files_paths = [os.path.join(model_path, p) for p in model_files_paths]
 
     chunk_size = max((len(model_files_paths) // n_jobs), 1)
     Parallel(n_jobs=n_jobs)(
         delayed(generate_solutions)(
-            model_files_paths[i * chunk_size : (i + 1) * chunk_size]
+            model_files_paths[i * chunk_size : (i + 1) * chunk_size],
+            *args,
+            **kwargs
         )
         for i in range(n_jobs)
     )
