@@ -97,14 +97,14 @@ class ModelGraphDataset(InMemoryDataset):
     def process(self):
         chunk_size_limit = 500
         chunk = ([], [], [])
+        save_paths = self.processed_paths
         for i, n in tqdm(list(enumerate(self._inst_names)), "(model, solution) => info"):
+            chunk[0].append(os.path.join(self.root, f"{n}.lp"))
+            chunk[1].append(os.path.join(self.root, f"{n}.npz"))
+            chunk[2].append(save_paths[i])
             if len(chunk[0]) >= chunk_size_limit or i == len(self._inst_names) - 1:
                 parallel_to_info(*chunk)
                 chunk = ([], [], [])
-            chunk[0].append(os.path.join(self.root, f"{n}.lp"))
-            chunk[1].append(os.path.join(self.root, f"{n}.npz"))
-            chunk[2].append(self.processed_paths[i])
-
 
     def get(self, idx):
         if self._augment_cache[idx] is None:
