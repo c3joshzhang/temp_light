@@ -12,15 +12,17 @@ from temp.data.info import ConInfo, ModelInfo, VarInfo
 
 def get_lhs_matrix(n_var: int, con_info: ConInfo):
     shape = (con_info.n, n_var)
-
-    row_idxs = [np.full(len(p), i, dtype=np.int64) for i, p in enumerate(con_info.lhs_p)]
+    row_idxs = [
+        np.full(len(p), i, dtype=np.int64) for i, p in enumerate(con_info.lhs_p)
+    ]
     row_idxs = np.concatenate(row_idxs)
     col_idxs = np.concatenate(con_info.lhs_p)
 
     vals = np.concatenate(con_info.lhs_c)
     idxs = np.stack([row_idxs, col_idxs])
-    lhs = torch.sparse_coo_tensor(idxs, vals, shape)
+    lhs = torch.sparse_coo_tensor(idxs, vals, shape, dtype=torch.double)
     return lhs
+
 
 def random_shift_binary_var_val(vals, var_info: VarInfo, prob: float = 0.2):
     shifted = vals.copy()
@@ -29,7 +31,7 @@ def random_shift_binary_var_val(vals, var_info: VarInfo, prob: float = 0.2):
             continue
         if random.random() > prob:
             continue
-        shifted[i] = 1 - vals[i]
+        shifted[i] = 1 - val
     return np.array(shifted)
 
 
@@ -65,6 +67,8 @@ def shift_model_info(info: ModelInfo, var_shift, con_shift, obj_shift):
         info.var_info.lbs[i] = min(max(info.var_info.lbs[i], 0.0), 1.0)
         info.var_info.ubs[i] = max(min(info.var_info.ubs[i], 1.0), 0.0)
 
+    if not con_shift.shape:
+        con_shift = [con_shift]
     for i, c_shift in enumerate(con_shift):
         if c_shift == 0:
             continue
@@ -78,8 +82,8 @@ def add_objective_constraint(info, ratio=0.01):
     sol_idx = random.randint(0, len(old_sols) - 1)
     rand_sol = old_sols[sol_idx]
 
-    rhs_ub = rand_sol[0] * (1 + random.random() * ratio)
-    rhs_lb = rand_sol[0] * (1 - random.random() * ratio)
+    rhs_ub = rand_sol[0] * np.round((1 + random.random() * ratio), 3)
+    rhs_lb = rand_sol[0] * np.round((1 - random.random() * ratio), 3)
     lhs_p = list(info.obj_info.ks)
     lhs_c = [info.obj_info.ks[i] for i in lhs_p]
 
@@ -104,37 +108,44 @@ def add_objective_constraint(info, ratio=0.01):
 def add_redundant_constraint(info: ModelInfo, prob=0.2, ratio=0.1):
     vals = info.var_info.sols[0, 1:]
     n_redundant = int(info.con_info.n * ratio)
+
+    if n_redundant == 0:
+        return info
+
     n_vars_in_c = int(len(vals) * prob)
-    rand_lhs_ps = np.random.choice(len(vals), (n_redundant, n_vars_in_c))
-    rand_lhs_cs = np.random.random(rand_lhs_ps.shape)
+    rand_lhs_ps = [
+        np.random.choice(len(vals), n_vars_in_c, replace=False)
+        for _ in range(n_redundant)
+    ]
+    rand_lhs_cs = 0.5 - np.random.random((n_redundant, n_vars_in_c))
 
     added_con_info = ConInfo([], [], [], [])
-    ge = ConInfo.ENUM_TO_OP[">="]
-    le = ConInfo.ENUM_TO_OP["<="]
-    added_con_types = np.random.choice([ge, le], n_redundant)
-    perturb_ratios = np.random.random(n_redundant)
-    perturb_ratios[added_con_types == le] *= -1
+    perturb_ratios = np.round(np.random.random(n_redundant), 3)
 
-    added_con_info.lhs_p = rand_lhs_ps.tolist()
+    added_con_info.lhs_p = [p.tolist() for p in rand_lhs_ps]
     added_con_info.lhs_c = rand_lhs_cs.tolist()
-    added_con_info.types = added_con_types.tolist()
-    added_con_info.rhs = [None] * n_redundant
-    lhs_m = get_lhs_matrix(len(vals), added_con_info)
+    added_con_info.types = np.ones(n_redundant, dtype=int) * ConInfo.ENUM_TO_OP["<="]
+    added_con_info.rhs = np.zeros(n_redundant)
 
-    rhs = lhs_m @ torch.as_tensor(vals)
-    rhs = (torch.as_tensor(perturb_ratios) + 1) * rhs
-    added_con_info.rhs = rhs.tolist()
+    lhs = get_lhs_matrix(info.var_info.n, added_con_info)
+    diff = get_lhs_rhs_diff(lhs, info.var_info.sols[0, 1:], added_con_info.rhs)
+    added_con_info.rhs += diff
+
+    pos_rhs = added_con_info.rhs > 0
+    neg_rhs = ~pos_rhs
+    added_con_info.rhs[pos_rhs] *= 1 + perturb_ratios[pos_rhs]
+    added_con_info.rhs[neg_rhs] *= 1 - perturb_ratios[neg_rhs]
+    added_con_info.rhs = added_con_info.rhs.tolist()
 
     info.con_info.lhs_p.extend(added_con_info.lhs_p)
     info.con_info.lhs_c.extend(added_con_info.lhs_c)
     info.con_info.rhs.extend(added_con_info.rhs)
     info.con_info.types.extend(added_con_info.types)
-    info.var_info.sols = info.var_info.sols[:1]
+    info.var_info.sols = info.var_info.sols[:1].copy()
     return info
 
 
 def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
-    
     new_lhs_p = []
     new_lhs_c = []
     new_op_types = []
@@ -152,7 +163,6 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
     aux_lhs_c = []
     to_replace = np.random.random(n_old_con)
     for i in range(n_old_con):
-
         if to_replace[i] > prob:
             continue
 
@@ -173,7 +183,7 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
 
         if len(curr_new_lhs_p) <= 1:
             continue
-        
+
         aux_lhs_p.append(curr_new_lhs_p.copy())
         aux_lhs_c.append(curr_new_lhs_c.copy())
 
@@ -188,21 +198,20 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
         aux_var_lb = sum(info.var_info.lbs[i] for i in curr_new_lhs_p)
         aux_var_ub = sum(info.var_info.ubs[i] for i in curr_new_lhs_p)
 
-        new_lbs.append(aux_var_lb)
-        new_ubs.append(aux_var_ub)
+        norm = max(abs(aux_var_lb), abs(aux_var_ub))
+
+        new_lbs.append(aux_var_lb / norm)
+        new_ubs.append(aux_var_ub / norm)
+
         new_var_types.append(gp.GRB.CONTINUOUS)
 
         curr_new_lhs_p.append(aux_var_idx)
         curr_new_lhs_c.append(-1)
+        norm_curr_new_lhs_c = [c / norm for c in curr_new_lhs_c]
 
         new_lhs_p.append(curr_new_lhs_p)
-        new_lhs_c.append(curr_new_lhs_c)
-        new_op_types.append(info.con_info.ENUM_TO_OP[">="])
-        new_rhs.append(0.0)
-        
-        new_lhs_p.append(curr_new_lhs_p)
-        new_lhs_c.append(curr_new_lhs_c)
-        new_op_types.append(info.con_info.ENUM_TO_OP["<="])
+        new_lhs_c.append(norm_curr_new_lhs_c)
+        new_op_types.append(info.con_info.ENUM_TO_OP["=="])
         new_rhs.append(0.0)
 
     info.var_info.lbs.extend(new_lbs)
@@ -258,11 +267,12 @@ def shift_solution(info: ModelInfo, prob=0.2):
 
 def augment_info(info: ModelInfo):
     assert info.var_info.sols is not None, "info must contain solution at var_info.sols"
-    augments = [replace_with_eq_aux_var, add_objective_constraint, add_redundant_constraint, shift_solution]
+    # augments = [replace_with_eq_aux_var, add_objective_constraint, add_redundant_constraint, shift_solution]
+    augments = [add_redundant_constraint]
     selector = np.random.randint(int(False), int(True) + 1, len(augments), dtype=bool)
     augmented = info.copy()
     for s, a in zip(selector, augments):
-        augmented = a(augmented) if s else augmented
+        augmented = a(augmented)  # if s else augmented
     return augmented
 
 
@@ -272,3 +282,28 @@ def parallel_augment_info(info: ModelInfo, prob=0.2, n=10, jobs=10) -> List[Mode
         delayed(augment_info)(info, prob, n_per_job) for _ in range(jobs)
     )
     return list(itertools.chain(*augs))
+
+
+def get_constraint_violations(lhs, vs, rhs, ops):
+    # lhs = get_lhs_matrix(info.var_info.n, info.con_info)
+    # rhs = np.array(info.con_info.rhs)
+    # ops = np.array(info.con_info.types)
+    # violations = get_constraint_violations(lhs, info.var_info.sols[0, 1:], rhs, ops)
+    lt_ops = ops == ConInfo.ENUM_TO_OP["<="]
+    eq_ops = ops == ConInfo.ENUM_TO_OP["=="]
+    gt_ops = ops == ConInfo.ENUM_TO_OP[">="]
+
+    diff = get_lhs_rhs_diff(lhs, vs, rhs)
+    good = np.zeros_like(diff, dtype=bool)
+    good[lt_ops] = diff[lt_ops] <= 0
+    good[gt_ops] = diff[gt_ops] >= 0
+    good[eq_ops] = diff[eq_ops] == 0
+    diff[good] = 0
+    return diff
+
+
+def get_lhs_rhs_diff(lhs, vs, rhs):
+    lhs_vs = lhs @ torch.as_tensor(vs)
+    lhs_vs = lhs_vs.numpy()
+    diff = lhs_vs - rhs
+    return diff
