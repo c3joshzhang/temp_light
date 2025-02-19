@@ -22,6 +22,7 @@ def get_bipartite_graph(info):
     con_idxs = list(range(n_cons))
     rhs = info.con_info.rhs
     senses = [info.con_info.OP_TO_ENUM[t] for t in info.con_info.types]
+
     con_multiplier = np.where(np.array(senses) == ">=", -1, 1)
     changed_senses = np.where(np.array(senses) == "==", "E", "L")
 

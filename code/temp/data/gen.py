@@ -65,9 +65,7 @@ def parallel_generate_solutions(model_path: str, n_jobs: int, *args, **kwargs):
     chunk_size = max((len(model_files_paths) // n_jobs), 1)
     Parallel(n_jobs=n_jobs)(
         delayed(generate_solutions)(
-            model_files_paths[i * chunk_size : (i + 1) * chunk_size],
-            *args,
-            **kwargs
+            model_files_paths[i * chunk_size : (i + 1) * chunk_size], *args, **kwargs
         )
         for i in range(n_jobs)
     )

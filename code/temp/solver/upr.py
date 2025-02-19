@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from temp.solver.utils import fix_var, repair, set_starts, unfix_var, solve_inst
+from temp.solver.utils import fix_var, repair, set_starts, solve_inst, unfix_var
 
 EVIDENCE_FUNCS = {
     "softplus": (lambda y: F.softplus(y)),
@@ -50,7 +50,7 @@ def get_confident_idx(indices, uncertainty, threshold):
 
 
 def solve(inst, prediction, uncertainty, indices, max_iter):
-    
+
     threshold = get_threshold(uncertainty)
     min_q = sum(uncertainty <= threshold) / len(uncertainty)
     max_q = min(min_q * 1.5, 1.0)
@@ -61,7 +61,7 @@ def solve(inst, prediction, uncertainty, indices, max_iter):
     conf_vals = prediction[conf_idxs]
     bounds = fix_var(inst, conf_idxs, conf_vals)
     print(max_q, threshold)
-    
+
     fixed = set(conf_idxs.tolist())
     freed = set(repair(inst, fixed, bounds))
     print(len(freed))
@@ -73,7 +73,7 @@ def solve(inst, prediction, uncertainty, indices, max_iter):
         to_unfix = list(fixed - set(conf_idxs.tolist()))
         to_unfix = [i for i in to_unfix if i not in freed]
         print(q, threshold, len(to_unfix))
-        print("^"*78)
+        print("^" * 78)
         unfix_var(inst, to_unfix, [bounds[i] for i in to_unfix])
         starts = {i: sol[i] for i in to_unfix}
         starts.update({i: sol[i] for i in freed})

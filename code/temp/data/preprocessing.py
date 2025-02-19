@@ -153,10 +153,8 @@ class ConstraintValuation(MessagePassing):
         else:  # assignment is decision values normalized between lb and ub
             x = (assignment * (ub - lb) + lb).view(-1, 1)
         Ax = self.propagate(edge_index, x=x, edge_attr=coeff, size=size)
-        difference = Ax - rhs
-        violation = torch.relu(difference) * con_kind + torch.abs(difference) * (
-            1 - con_kind
-        )
+        diff = Ax - rhs
+        violation = torch.relu(diff) * con_kind + torch.abs(diff) * (1 - con_kind)
         return Ax, violation
 
     def message(self, x_j, edge_attr):

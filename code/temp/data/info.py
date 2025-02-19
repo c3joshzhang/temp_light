@@ -2,10 +2,11 @@ from typing import Dict, List
 
 
 class VarInfo:
-    def __init__(self, lbs: List[float], ubs: List[float], types: List[str]):
+    def __init__(self, lbs: List[float], ubs: List[float], types: List[str], inf=1e10):
         assert len(lbs) == len(ubs) == len(types)
-        self.lbs = [_handle_inf(l) for l in lbs]
-        self.ubs = [_handle_inf(u) for u in ubs]
+        self.inf = inf
+        self.lbs = [_handle_inf(l, inf) for l in lbs]
+        self.ubs = [_handle_inf(u, inf) for u in ubs]
         self.types = types
         self._sols = None
 
@@ -41,7 +42,9 @@ class VarInfo:
         return type(self)(sub_lbs, sub_ubs, sub_types), new_old_mapping
 
     def copy(self):
-        copied = type(self)(self.lbs.copy(), self.ubs.copy(), self.types.copy())
+        copied = type(self)(
+            self.lbs.copy(), self.ubs.copy(), self.types.copy(), self.inf
+        )
         if self._sols is not None:
             copied._sols = self._sols.copy()
         return copied
@@ -51,11 +54,12 @@ class ConInfo:
     ENUM_TO_OP = {"<=": 1, ">=": 2, "==": 3}
     OP_TO_ENUM = {1: "<=", 2: ">=", 3: "=="}
 
-    def __init__(self, lhs_p, lhs_c, rhs, types):
+    def __init__(self, lhs_p, lhs_c, rhs, types, inf=1e10):
         self.lhs_p = lhs_p
         self.lhs_c = lhs_c
-        self.rhs = [_handle_inf(r) for r in rhs]
+        self.rhs = [_handle_inf(r, inf) for r in rhs]
         self.types = types
+        self.inf = inf
 
     def __repr__(self):
         info_str = []
@@ -73,7 +77,11 @@ class ConInfo:
 
     def copy(self):
         return type(self)(
-            self.lhs_p.copy(), self.lhs_c.copy(), self.rhs.copy(), self.types.copy()
+            self.lhs_p.copy(),
+            self.lhs_c.copy(),
+            self.rhs.copy(),
+            self.types.copy(),
+            self.inf,
         )
 
     @property
@@ -199,9 +207,9 @@ class ModelInfo:
         return type(self)(sub_var_info, sub_con_info, sub_obj_info), new_old_mapping
 
 
-def _handle_inf(v):
+def _handle_inf(v, inf):
     if v == float("inf"):
-        return 1e10
+        return inf
     if v == -float("inf"):
-        return -1e10
+        return -inf
     return v

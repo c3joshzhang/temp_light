@@ -10,15 +10,15 @@ from joblib import Parallel, delayed
 from temp.data.info import ConInfo, ModelInfo, VarInfo
 
 
-def get_lhs_matrix(n_var: int, con_info: ConInfo):
-    shape = (con_info.n, n_var)
-    row_idxs = [
-        np.full(len(p), i, dtype=np.int64) for i, p in enumerate(con_info.lhs_p)
-    ]
+def get_lhs_matrix(n_var: int, n_con: int, lhs_p: list, lhs_c: list):
+    assert len(lhs_p) == len(lhs_c) == n_con
+    shape = (n_con, n_var)
+    row_idxs = [np.full(len(p), i, dtype=int) for i, p in enumerate(lhs_p)]
     row_idxs = np.concatenate(row_idxs)
-    col_idxs = np.concatenate(con_info.lhs_p)
+    col_idxs = np.concatenate(lhs_p)
 
-    vals = np.concatenate(con_info.lhs_c)
+    assert len(row_idxs) == len(set(zip(row_idxs, col_idxs)))
+    vals = np.concatenate(lhs_c)
     idxs = np.stack([row_idxs, col_idxs])
     lhs = torch.sparse_coo_tensor(idxs, vals, shape, dtype=torch.double)
     return lhs
@@ -127,7 +127,9 @@ def add_redundant_constraint(info: ModelInfo, prob=0.2, ratio=0.1):
     added_con_info.types = np.ones(n_redundant, dtype=int) * ConInfo.ENUM_TO_OP["<="]
     added_con_info.rhs = np.zeros(n_redundant)
 
-    lhs = get_lhs_matrix(info.var_info.n, added_con_info)
+    lhs = get_lhs_matrix(
+        info.var_info.n, added_con_info.n, added_con_info.lhs_p, added_con_info.lhs_c
+    )
     diff = get_lhs_rhs_diff(lhs, info.var_info.sols[0, 1:], added_con_info.rhs)
     added_con_info.rhs += diff
 
@@ -143,6 +145,12 @@ def add_redundant_constraint(info: ModelInfo, prob=0.2, ratio=0.1):
     info.con_info.types.extend(added_con_info.types)
     info.var_info.sols = info.var_info.sols[:1].copy()
     return info
+
+
+def reduce_with_partial_solution(info: ModelInfo, ratio=0.2): ...
+
+
+def replace_eq_with_double_bound(info: ModelInfo, ratio=0.2): ...
 
 
 def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
@@ -161,9 +169,9 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
 
     aux_lhs_p = []
     aux_lhs_c = []
-    to_replace = np.random.random(n_old_con)
-    for i in range(n_old_con):
-        if to_replace[i] > prob:
+    for i, p in enumerate(np.random.random(n_old_con)):
+
+        if p > prob:
             continue
 
         lhs_p = info.con_info.lhs_p[i]
@@ -192,25 +200,19 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
 
         info.con_info.lhs_p[i] = [lhs_p[j] for j in keep]
         info.con_info.lhs_p[i].append(aux_var_idx)
+
         info.con_info.lhs_c[i] = [lhs_c[j] for j in keep]
         info.con_info.lhs_c[i].append(1.0)
 
-        aux_var_lb = sum(info.var_info.lbs[i] for i in curr_new_lhs_p)
-        aux_var_ub = sum(info.var_info.ubs[i] for i in curr_new_lhs_p)
-
-        norm = max(abs(aux_var_lb), abs(aux_var_ub))
-
-        new_lbs.append(aux_var_lb / norm)
-        new_ubs.append(aux_var_ub / norm)
+        new_lbs.append(-info.var_info.inf)
+        new_ubs.append(+info.var_info.inf)
 
         new_var_types.append(gp.GRB.CONTINUOUS)
-
         curr_new_lhs_p.append(aux_var_idx)
         curr_new_lhs_c.append(-1)
-        norm_curr_new_lhs_c = [c / norm for c in curr_new_lhs_c]
 
         new_lhs_p.append(curr_new_lhs_p)
-        new_lhs_c.append(norm_curr_new_lhs_c)
+        new_lhs_c.append(curr_new_lhs_c)
         new_op_types.append(info.con_info.ENUM_TO_OP["=="])
         new_rhs.append(0.0)
 
@@ -230,33 +232,27 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
 
 
 def get_aux_solutions(solutions, aux_lhs_p, aux_lhs_c):
-    assert len(aux_lhs_p) == len(aux_lhs_c)
+    # n: number of existing variables
+    # m: number of existing solutions
+    # k: number of aux variables, number of aux constraints
+    # n + k is the existing variables and the aux variables
 
+    assert len(aux_lhs_p) == len(aux_lhs_c)
     n_vars = solutions.shape[1]
     n_auxs = len(aux_lhs_p)
-    shape = (n_vars, n_auxs)
 
-    idxs = [[], []]
-    vals = []
-
-    for aux_var_idx in range(n_auxs):
-        ps = aux_lhs_p[aux_var_idx]
-        cs = aux_lhs_c[aux_var_idx]
-        for p, c in zip(ps, cs):
-            idxs[0].append(p)
-            idxs[1].append(aux_var_idx)
-            vals.append(c)
-
-    n_m = solutions
-    m_k = torch.sparse_coo_tensor(idxs, vals, shape)
-    n_k = torch.as_tensor(solutions).float() @ m_k.float()
-    return np.hstack([n_m, n_k])
+    m_n = solutions
+    k_n = get_lhs_matrix(n_vars, n_auxs, aux_lhs_p, aux_lhs_c)
+    m_k = torch.as_tensor(m_n, dtype=torch.double) @ k_n.T
+    return np.hstack([m_n, m_k])
 
 
 def shift_solution(info: ModelInfo, prob=0.2):
     vals = info.var_info.sols[0, 1:]
     shifted_vals = random_shift_binary_var_val(vals, info.var_info, prob=prob)
-    lhs = get_lhs_matrix(info.var_info.n, info.con_info)
+    lhs = get_lhs_matrix(
+        info.var_info.n, info.con_info.n, info.con_info.lhs_p, info.con_info.lhs_c
+    )
     var_shift = shifted_vals - vals
     con_shift = get_con_shift(lhs, var_shift)
     obj_shift = get_obj_shift(info.obj_info.ks, var_shift)
@@ -267,8 +263,12 @@ def shift_solution(info: ModelInfo, prob=0.2):
 
 def augment_info(info: ModelInfo):
     assert info.var_info.sols is not None, "info must contain solution at var_info.sols"
-    # augments = [replace_with_eq_aux_var, add_objective_constraint, add_redundant_constraint, shift_solution]
-    augments = [add_redundant_constraint]
+    augments = [
+        shift_solution,
+        add_objective_constraint,
+        replace_with_eq_aux_var,
+        add_redundant_constraint,
+    ]
     selector = np.random.randint(int(False), int(True) + 1, len(augments), dtype=bool)
     augmented = info.copy()
     for s, a in zip(selector, augments):
