@@ -147,10 +147,105 @@ def add_redundant_constraint(info: ModelInfo, prob=0.2, ratio=0.1):
     return info
 
 
-def reduce_with_partial_solution(info: ModelInfo, ratio=0.2): ...
+def reduce_with_fixed_solution(info: ModelInfo, ratio=0.2):
+    vals = info.var_info.sols[0, 1:]
+    n_fixed = int(info.var_info.n * ratio)
+    if n_fixed == 0:
+        return info
+
+    fixed_vars = set(np.random.choice(info.var_info.n, n_fixed, replace=False))
+    var_idx_mapping = {}
+    for i in range(len(vals)):
+        if i in fixed_vars:
+            continue
+        var_idx_mapping[i] = len(var_idx_mapping)
+
+    new_lhs_p = []
+    new_lhs_c = []
+    new_rhs = []
+
+    con_info = info.con_info
+    for i in range(con_info.n):
+        old_lhs_p = con_info.lhs_p[i]
+        old_lhs_c = con_info.lhs_c[i]
+        old_rhs = con_info.rhs[i]
+
+        cur_lhs_p = []
+        cur_lhs_c = []
+        cur_rhs = old_rhs
+        for j, c in zip(old_lhs_p, old_lhs_c):
+            if j not in fixed_vars:
+                cur_lhs_p.append(var_idx_mapping[j])
+                cur_lhs_c.append(c)
+                continue
+            cur_rhs -= c * vals[j]
+
+        new_lhs_p.append(cur_lhs_p)
+        new_lhs_c.append(cur_lhs_c)
+        new_rhs.append(cur_rhs)
+
+    con_info.lhs_p = new_lhs_p
+    con_info.lhs_c = new_lhs_c
+    con_info.rhs = new_rhs
+
+    new_lbs = [None for _ in range(len(var_idx_mapping))]
+    new_ubs = [None for _ in range(len(var_idx_mapping))]
+    new_types = [None for _ in range(len(var_idx_mapping))]
+
+    var_info = info.var_info
+    for i in range(var_info.n):
+        if i in fixed_vars:
+            continue
+        new_i = var_idx_mapping[i]
+        new_lbs[new_i] = var_info.lbs[i]
+        new_ubs[new_i] = var_info.ubs[i]
+        new_types[new_i] = var_info.types[i]
+
+    var_info.lbs = new_lbs
+    var_info.ubs = new_ubs
+    var_info.types = new_types
+
+    cur_obj = info.var_info.sols[0, 0]
+    new_ks = {}
+    obj_info = info.obj_info
+    for i, k in obj_info.ks.items():
+        if i not in fixed_vars:
+            new_i = var_idx_mapping[i]
+            new_ks[new_i] = k
+            continue
+        cur_obj -= k * vals[i]
+    obj_info.ks = new_ks
+
+    cur_sols = [v for i, v in enumerate(vals) if i not in fixed_vars]
+    var_info.sols = np.hstack([[cur_obj], cur_sols])[np.newaxis, :]
+
+    return info
 
 
-def replace_eq_with_double_bound(info: ModelInfo, ratio=0.2): ...
+def replace_eq_with_double_bound(info: ModelInfo, ratio=0.2):
+
+    new_lhs_p = []
+    new_lhs_c = []
+    new_types = []
+    new_rhs = []
+    con_info = info.con_info
+
+    for i, prob in enumerate(np.random.random(con_info.n)):
+        if prob > ratio:
+            continue
+        if con_info.types[i] != ConInfo.ENUM_TO_OP["=="]:
+            continue
+        con_info.types[i] = ConInfo.ENUM_TO_OP["<="]
+        new_lhs_p.append(con_info.lhs_p[i].copy())
+        new_lhs_c.append(con_info.lhs_c[i].copy())
+        new_types.append(ConInfo.ENUM_TO_OP[">="])
+        new_rhs.append(con_info.rhs[i])
+
+    con_info.lhs_p.extend(new_lhs_p)
+    con_info.lhs_c.extend(new_lhs_c)
+    con_info.types.extend(new_types)
+    con_info.rhs.extend(new_rhs)
+    return info
 
 
 def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
@@ -268,11 +363,13 @@ def augment_info(info: ModelInfo):
         add_objective_constraint,
         replace_with_eq_aux_var,
         add_redundant_constraint,
+        replace_eq_with_double_bound,
+        reduce_with_fixed_solution,
     ]
     selector = np.random.randint(int(False), int(True) + 1, len(augments), dtype=bool)
     augmented = info.copy()
     for s, a in zip(selector, augments):
-        augmented = a(augmented)  # if s else augmented
+        augmented = a(augmented) if s else augmented
     return augmented
 
 
