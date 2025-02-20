@@ -1,8 +1,10 @@
 from typing import Dict, List
 
 
+_DEFAULT_INF = 1e6
+
 class VarInfo:
-    def __init__(self, lbs: List[float], ubs: List[float], types: List[str], inf=1e10):
+    def __init__(self, lbs: List[float], ubs: List[float], types: List[str], inf=_DEFAULT_INF):
         assert len(lbs) == len(ubs) == len(types)
         self.inf = inf
         self.lbs = [_handle_inf(l, inf) for l in lbs]
@@ -54,7 +56,7 @@ class ConInfo:
     ENUM_TO_OP = {"<=": 1, ">=": 2, "==": 3}
     OP_TO_ENUM = {1: "<=", 2: ">=", 3: "=="}
 
-    def __init__(self, lhs_p, lhs_c, rhs, types, inf=1e10):
+    def __init__(self, lhs_p, lhs_c, rhs, types, inf=_DEFAULT_INF):
         self.lhs_p = lhs_p
         self.lhs_c = lhs_c
         self.rhs = [_handle_inf(r, inf) for r in rhs]

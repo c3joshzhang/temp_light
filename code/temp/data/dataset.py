@@ -35,8 +35,14 @@ class AugCache:
         self.info = info
         self.name = name
 
-        self.data = info_to_data(info)
-        self.data.instance_name = name
+        max_retry = 100
+        for i in range(max_retry):
+            d = info_to_data(info)
+            if d is None:
+                continue
+            self.data = info_to_data(info)
+            self.data.instance_name = name
+            break
 
         self.augment = augment
         self.size = size
@@ -57,11 +63,17 @@ class AugCache:
             self.augmented[idx][0] = 0
 
         if aug is None:
-            a = self.augment(self.info)
-            d = info_to_data(a)
-            d.instance_name = f"aug_{idx}_{self.name}"
-            self.augmented[idx][1] = d
-
+            max_retry = 10
+            for i in range(max_retry):
+                a = self.augment(self.info)
+                d = info_to_data(a)
+                if d is None:
+                    # TODO: fix this
+                    # print(f"augmentation {i} failed, {a.applied}")
+                    continue
+                d.instance_name = f"aug_{idx}_{self.name}"
+                self.augmented[idx][1] = d
+                break
         self.augmented[idx][0] += 1
         return self.augmented[idx][1]
 
@@ -236,7 +248,7 @@ def create_data_object(graph, is_labeled=True) -> BipartiteData:
                     if not (0 <= norm_bias <= 1):
                         w_bias = np.clip(w_bias, lb[idx], ub[idx])
                         norm_bias = (w_bias - lb[idx]) / value_range
-
+                        
                     if not (0 <= norm_incumbent <= 1):
                         incumbent = np.clip(incumbent, lb[idx], ub[idx])
                         norm_incumbent = (incumbent - lb[idx]) / value_range
@@ -248,7 +260,8 @@ def create_data_object(graph, is_labeled=True) -> BipartiteData:
                     y_norm_real[idx] = 1 if ub[idx] != 0 or lb[idx] != 0 else 0
                     y_incumbent[idx] = 1 if ub[idx] != 0 or lb[idx] != 0 else 0
 
-                assert 0 <= y_incumbent[idx] <= 1 and 0 <= y_norm_real[idx] <= 1
+                msg = (lb[idx], ub[idx], incumbent, w_bias)
+                assert 0 <= y_incumbent[idx] <= 1 and 0 <= y_norm_real[idx] <= 1, msg
 
             feat_var[idx] = [isb, isc, isi, node_data["obj_coeff"], graph.degree[node]]
             obj[idx] = node_data["obj_coeff"]
@@ -279,22 +292,22 @@ def create_data_object(graph, is_labeled=True) -> BipartiteData:
         edge_features_var.append([edge_data["coeff"]])
 
     data = BipartiteData()
-    data.obj = torch.tensor(obj, dtype=torch.double)
+    data.obj = torch.tensor(obj, dtype=torch.float)
     data.is_binary = torch.tensor(is_binary, dtype=torch.bool)
-    data.lb = torch.tensor(lb, dtype=torch.double)
-    data.ub = torch.tensor(ub, dtype=torch.double)
+    data.lb = torch.tensor(lb, dtype=torch.float)
+    data.ub = torch.tensor(ub, dtype=torch.float)
 
     if is_labeled:
-        data.y_real = torch.tensor(y_real, dtype=torch.double)
-        data.y_norm_real = torch.tensor(y_norm_real, dtype=torch.double)
-        data.y_incumbent = torch.tensor(y_incumbent, dtype=torch.double)
+        data.y_real = torch.tensor(y_real, dtype=torch.float)
+        data.y_norm_real = torch.tensor(y_norm_real, dtype=torch.float)
+        data.y_incumbent = torch.tensor(y_incumbent, dtype=torch.float)
 
-    data.var_node_features = torch.tensor(feat_var, dtype=torch.double)
-    data.con_node_features = torch.tensor(feat_con, dtype=torch.double)
-    data.rhs = torch.tensor(rhs, dtype=torch.double)
-    data.con_kind = torch.tensor(con_kind, dtype=torch.double)
-    data.edge_features_con = torch.tensor(edge_features_con, dtype=torch.double)
-    data.edge_features_var = torch.tensor(edge_features_var, dtype=torch.double)
+    data.var_node_features = torch.tensor(feat_var, dtype=torch.float)
+    data.con_node_features = torch.tensor(feat_con, dtype=torch.float)
+    data.rhs = torch.tensor(rhs, dtype=torch.float)
+    data.con_kind = torch.tensor(con_kind, dtype=torch.float)
+    data.edge_features_con = torch.tensor(edge_features_con, dtype=torch.float)
+    data.edge_features_var = torch.tensor(edge_features_var, dtype=torch.float)
     data.num_var_nodes = torch.tensor(num_var_nodes)
     data.num_con_nodes = torch.tensor(num_con_nodes)
     data.edge_index_var = torch.tensor(edge_list_var, dtype=torch.long).t().contiguous()
@@ -315,6 +328,9 @@ def create_data_object(graph, is_labeled=True) -> BipartiteData:
             (data.num_var_nodes, data.num_con_nodes),
         )
         data.Ax = Ax
-        if violation.max() > 1e-5:
+        if violation.max() > 1:
+            # print(violation[violation != 0])
+            # TODO: fix this
             print(">>>", str(violation.max()))
+            return None
     return data

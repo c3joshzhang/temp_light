@@ -72,8 +72,12 @@ def step(
         loss, evidence_tuple, uncertainty = criterion(
             GLOBAL_STEP, graph_idx, batch, output, y, binary_pred, step_type
         )
+        
+        # if batch_idx % 1 == 0:
+        #     print(batch_idx, loss)
 
         if not eval:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             loss.backward()
             optimizer.step()
 

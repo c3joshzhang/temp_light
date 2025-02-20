@@ -65,7 +65,7 @@ def setcover(
 
 
 def lot_sizing(
-    n_periods: int = 16,
+    n_periods: int = 32,
     n_items: int = 16,
     final_demand_low: int = 20,
     final_demand_high: int = 100,

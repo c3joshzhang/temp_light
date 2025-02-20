@@ -20,7 +20,7 @@ def get_lhs_matrix(n_var: int, n_con: int, lhs_p: list, lhs_c: list):
     assert len(row_idxs) == len(set(zip(row_idxs, col_idxs)))
     vals = np.concatenate(lhs_c)
     idxs = np.stack([row_idxs, col_idxs])
-    lhs = torch.sparse_coo_tensor(idxs, vals, shape, dtype=torch.double)
+    lhs = torch.sparse_coo_tensor(idxs, vals, shape, dtype=torch.float)
     return lhs
 
 
@@ -84,6 +84,10 @@ def add_objective_constraint(info, ratio=0.01):
 
     rhs_ub = rand_sol[0] * np.round((1 + random.random() * ratio), 3)
     rhs_lb = rand_sol[0] * np.round((1 - random.random() * ratio), 3)
+
+    rhs_lb = min(rhs_lb, rhs_ub)
+    rhs_ub = max(rhs_lb, rhs_ub)
+
     lhs_p = list(info.obj_info.ks)
     lhs_c = [info.obj_info.ks[i] for i in lhs_p]
 
@@ -100,7 +104,7 @@ def add_objective_constraint(info, ratio=0.01):
     info.con_info.lhs_c.append(lhs_c)
     info.con_info.rhs.append(rhs_lb)
     info.con_info.types.append(info.con_info.ENUM_TO_OP[">="])
-
+    
     info.var_info.sols = new_sols
     return info
 
@@ -120,7 +124,7 @@ def add_redundant_constraint(info: ModelInfo, prob=0.2, ratio=0.1):
     rand_lhs_cs = 0.5 - np.random.random((n_redundant, n_vars_in_c))
 
     added_con_info = ConInfo([], [], [], [])
-    perturb_ratios = np.round(np.random.random(n_redundant), 3)
+    perturb_ratios = np.round(np.random.random(n_redundant) * 0.95, 3)
 
     added_con_info.lhs_p = [p.tolist() for p in rand_lhs_ps]
     added_con_info.lhs_c = rand_lhs_cs.tolist()
@@ -299,8 +303,23 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
         info.con_info.lhs_c[i] = [lhs_c[j] for j in keep]
         info.con_info.lhs_c[i].append(1.0)
 
-        new_lbs.append(-info.var_info.inf)
-        new_ubs.append(+info.var_info.inf)
+        aux_var_lb = 0
+        aux_var_ub = 0
+        for p, c in zip(curr_new_lhs_p, curr_new_lhs_c):
+            c_lb = c * info.var_info.lbs[p]
+            c_ub = c * info.var_info.ubs[p]
+            if c_ub >= c_lb:
+                aux_var_ub += c_ub
+                aux_var_lb += c_lb
+            else:
+                aux_var_ub += c_lb
+                aux_var_lb += c_ub
+
+        aux_var_lb = max(min(aux_var_lb, aux_var_ub), -info.var_info.inf)
+        aux_var_ub = min(max(aux_var_lb, aux_var_ub), +info.var_info.inf)
+
+        new_lbs.append(aux_var_lb)
+        new_ubs.append(aux_var_ub)
 
         new_var_types.append(gp.GRB.CONTINUOUS)
         curr_new_lhs_p.append(aux_var_idx)
@@ -322,6 +341,8 @@ def replace_with_eq_aux_var(info: ModelInfo, prob=0.2, ratio=0.2):
 
     old_sols = info.var_info.sols
     aux_sols = get_aux_solutions(old_sols[:, 1:], aux_lhs_p, aux_lhs_c)
+    aux_sols = np.clip(aux_sols, new_lbs, new_ubs)
+    aux_sols = np.hstack([old_sols[:, 1:], aux_sols])
     info.var_info.sols = np.hstack([old_sols[:, :1], aux_sols])
     return info
 
@@ -338,8 +359,8 @@ def get_aux_solutions(solutions, aux_lhs_p, aux_lhs_c):
 
     m_n = solutions
     k_n = get_lhs_matrix(n_vars, n_auxs, aux_lhs_p, aux_lhs_c)
-    m_k = torch.as_tensor(m_n, dtype=torch.double) @ k_n.T
-    return np.hstack([m_n, m_k])
+    m_k = torch.as_tensor(m_n, dtype=torch.float) @ k_n.T
+    return m_k
 
 
 def shift_solution(info: ModelInfo, prob=0.2):
@@ -359,17 +380,22 @@ def shift_solution(info: ModelInfo, prob=0.2):
 def augment_info(info: ModelInfo):
     assert info.var_info.sols is not None, "info must contain solution at var_info.sols"
     augments = [
-        shift_solution,
-        add_objective_constraint,
-        replace_with_eq_aux_var,
         add_redundant_constraint,
         replace_eq_with_double_bound,
-        reduce_with_fixed_solution,
+        # reduce_with_fixed_solution,
+        add_objective_constraint,
+        replace_with_eq_aux_var,
+        shift_solution,
     ]
-    selector = np.random.randint(int(False), int(True) + 1, len(augments), dtype=bool)
+    # TODO: check why order matters
+    select_probs = np.random.random(len(augments))
     augmented = info.copy()
-    for s, a in zip(selector, augments):
-        augmented = a(augmented) if s else augmented
+    applied = []
+    for p, a in zip(select_probs, augments):
+        if p >= 1/len(augments):
+            continue
+        augmented = a(augmented)
+    augmented.applied = applied
     return augmented
 
 
@@ -400,7 +426,7 @@ def get_constraint_violations(lhs, vs, rhs, ops):
 
 
 def get_lhs_rhs_diff(lhs, vs, rhs):
-    lhs_vs = lhs @ torch.as_tensor(vs)
+    lhs_vs = lhs @ torch.as_tensor(vs).float()
     lhs_vs = lhs_vs.numpy()
     diff = lhs_vs - rhs
     return diff
