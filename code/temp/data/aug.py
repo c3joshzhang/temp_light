@@ -235,6 +235,59 @@ def reduce_with_fixed_solution(info: ModelInfo, ratio=0.2):
     return info
 
 
+def re_rank_solutions(info: ModelInfo):
+
+    if len(info.var_info.sols) <= 1:
+        return info
+    
+    binary_vars_in_obj = [i for i in info.obj_info.ks if info.var_info.types[i] == gp.GRB.BINARY]
+    if not binary_vars_in_obj:
+        return info
+    
+    sols = info.var_info.sols
+    sense = info.obj_info.sense
+    cur_idx = np.random.randint(1, len(sols))
+    
+    top_sol = sols[0, 1:]
+    cur_sol = sols[cur_idx, 1:]
+
+    top_obj_val = sols[0, 0]
+    cur_obj_val = sols[cur_idx, 0]
+
+    top_bin_vals = top_sol[binary_vars_in_obj]
+    cur_bin_vals = cur_sol[binary_vars_in_obj]
+
+    rand_ks = 2 * (0.5 - np.random.random(len(binary_vars_in_obj)))
+
+    top_bin_total = (top_bin_vals * rand_ks).sum()
+    cur_bin_total = (cur_bin_vals * rand_ks).sum()
+
+    if top_bin_total == cur_bin_total:
+        return info
+
+    obj_val_diff = cur_obj_val - top_obj_val
+    bin_val_diff = top_bin_total - cur_bin_total
+    shift_ratio = obj_val_diff / bin_val_diff
+
+    shift_ratio *= 1 + np.random.random() if sense == gp.GRB.MAXIMIZE else -np.random.random()
+    rand_ks *= shift_ratio
+
+    all_vals = sols[:, 1:]
+    obj_val_diffs = (all_vals[:, binary_vars_in_obj] * rand_ks).sum(axis=1)
+    sols[:, 0] += obj_val_diffs
+
+    sort_indices = np.argsort(sols[:, 0])
+    if sense == gp.GRB.MAXIMIZE:
+        sort_indices = sort_indices[::-1]
+    sols = sols[sort_indices]
+
+    for i, rand_k in zip(binary_vars_in_obj, rand_ks):
+        info.obj_info.ks[i] += rand_k
+        
+    info.var_info.sols = sols
+    return info
+
+
 def replace_eq_with_double_bound(info: ModelInfo, ratio=0.2):
 
     new_lhs_p = []
@@ -396,7 +449,7 @@ def augment_info(info: ModelInfo):
         replace_with_eq_aux_var,
         shift_solution,
     ]
-    # TODO: check why order matters
+    np.random.shuffle(augments)
     select_probs = np.random.random(len(augments))
     augmented = info.copy()
     applied = []
