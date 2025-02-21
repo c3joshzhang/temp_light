@@ -269,7 +269,7 @@ def re_rank_solutions(info: ModelInfo):
     bin_val_diff = top_bin_total - cur_bin_total
     shift_ratio = obj_val_diff / bin_val_diff
 
-    shift_ratio *= 1 + np.random.random() * 0.1 if sense == gp.GRB.MAXIMIZE else -np.random.random() * 0.1
+    shift_ratio *= 1 + np.random.random() if sense == gp.GRB.MAXIMIZE else -np.random.random()
     rand_ks *= shift_ratio
 
     all_vals = sols[:, 1:]

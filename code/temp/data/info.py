@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 
-_DEFAULT_INF = 1e6
+_DEFAULT_INF = 1e16
 
 class VarInfo:
     def __init__(self, lbs: List[float], ubs: List[float], types: List[str], inf=_DEFAULT_INF):

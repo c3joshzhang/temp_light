@@ -141,7 +141,6 @@ class NodeDegreeCalculation(MessagePassing):
     def message(self, connected_j):
         return connected_j
 
-
 class ConstraintValuation(MessagePassing):
     def __init__(self):
         super(ConstraintValuation, self).__init__(aggr="add", flow="source_to_target")
