@@ -269,7 +269,7 @@ def re_rank_solutions(info: ModelInfo):
     bin_val_diff = top_bin_total - cur_bin_total
     shift_ratio = obj_val_diff / bin_val_diff
 
-    shift_ratio *= 1 + np.random.random() if sense == gp.GRB.MAXIMIZE else -np.random.random()
+    shift_ratio *= 1 + np.random.random() * 0.1 if sense == gp.GRB.MAXIMIZE else -np.random.random() * 0.1
     rand_ks *= shift_ratio
 
     all_vals = sols[:, 1:]
@@ -283,8 +283,14 @@ def re_rank_solutions(info: ModelInfo):
 
     for i, rand_k in zip(binary_vars_in_obj, rand_ks):
         info.obj_info.ks[i] += rand_k
-        
     info.var_info.sols = sols
+    
+    info.con_info.lhs_p.append([k for k in info.obj_info.ks])
+    info.con_info.lhs_c.append([c for c in info.obj_info.ks.values()])
+    con_typ = "<=" if sense == gp.GRB.MAXIMIZE else ">="
+    info.con_info.types.append(ConInfo.ENUM_TO_OP[con_typ])
+    info.con_info.rhs.append(sols[0, 0])
+
     return info
 
 
@@ -442,6 +448,7 @@ def shift_solution(info: ModelInfo, prob=0.2):
 def augment_info(info: ModelInfo):
     assert info.var_info.sols is not None, "info must contain solution at var_info.sols"
     augments = [
+        re_rank_solutions,
         add_redundant_constraint,
         replace_eq_with_double_bound,
         reduce_with_fixed_solution,
