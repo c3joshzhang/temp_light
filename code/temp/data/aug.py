@@ -167,30 +167,38 @@ def reduce_with_fixed_solution(info: ModelInfo, ratio=0.2):
     new_lhs_p = []
     new_lhs_c = []
     new_rhs = []
+    new_types = []
 
     con_info = info.con_info
     for i in range(con_info.n):
         old_lhs_p = con_info.lhs_p[i]
         old_lhs_c = con_info.lhs_c[i]
         old_rhs = con_info.rhs[i]
+        old_type = con_info.types[i]
 
         cur_lhs_p = []
         cur_lhs_c = []
+        cur_types = []
         cur_rhs = old_rhs
         for j, c in zip(old_lhs_p, old_lhs_c):
-            if j not in fixed_vars:
-                cur_lhs_p.append(var_idx_mapping[j])
-                cur_lhs_c.append(c)
+            if j in fixed_vars:
+                cur_rhs -= c * vals[j]
                 continue
-            cur_rhs -= c * vals[j]
+            cur_lhs_p.append(var_idx_mapping[j])
+            cur_lhs_c.append(c)
 
+        if len(cur_lhs_p) == 0:
+            continue
+        
         new_lhs_p.append(cur_lhs_p)
         new_lhs_c.append(cur_lhs_c)
         new_rhs.append(cur_rhs)
+        new_types.append(old_type)
 
     con_info.lhs_p = new_lhs_p
     con_info.lhs_c = new_lhs_c
     con_info.rhs = new_rhs
+    con_info.types = new_types
 
     new_lbs = [None for _ in range(len(var_idx_mapping))]
     new_ubs = [None for _ in range(len(var_idx_mapping))]
@@ -220,9 +228,10 @@ def reduce_with_fixed_solution(info: ModelInfo, ratio=0.2):
         cur_obj -= k * vals[i]
     obj_info.ks = new_ks
 
-    cur_sols = [v for i, v in enumerate(vals) if i not in fixed_vars]
+    cur_sols = [None for _ in range(len(var_idx_mapping))]
+    for old_i, new_i in var_idx_mapping.items():
+        cur_sols[new_i] = vals[old_i]
     var_info.sols = np.hstack([[cur_obj], cur_sols])[np.newaxis, :]
-
     return info
 
 
@@ -382,7 +391,7 @@ def augment_info(info: ModelInfo):
     augments = [
         add_redundant_constraint,
         replace_eq_with_double_bound,
-        # reduce_with_fixed_solution,
+        reduce_with_fixed_solution,
         add_objective_constraint,
         replace_with_eq_aux_var,
         shift_solution,
