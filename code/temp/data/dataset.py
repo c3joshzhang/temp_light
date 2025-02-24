@@ -29,18 +29,17 @@ class BipartiteData(Data):
             return self.num_var_nodes
         return 0
 
-import os
 class AugCache:
     def __init__(self, info, name, augment=None, size=5, life=10):
         self.info = info
         self.name = name
 
-        max_retry = 100
+        max_retry = 10
         for i in range(max_retry):
             d = info_to_data(info)
             if d is None:
                 continue
-            self.data = info_to_data(info)
+            self.data = d
             self.data.instance_name = name
             break
 
@@ -159,7 +158,6 @@ def parallel_to_info(lp_paths, npz_paths, save_paths, n_jobs=10):
 
 
 def info_to_data(info: ModelInfo):
-    os.info = info
     sol = info.var_info.sols
     g, _ = get_bipartite_graph(info)
     g = add_label(g, info, sol) if sol is not None else g
@@ -329,9 +327,9 @@ def create_data_object(graph, is_labeled=True) -> BipartiteData:
             (data.num_var_nodes, data.num_con_nodes),
         )
         data.Ax = Ax
-        os.data = data
 
-        if violation.max() > (data.ub - data.lb).abs().max() * 0.01:
+        max_violation = violation.max()
+        if  max_violation > 1 and max_violation > (data.ub - data.lb).abs().max() * 0.01:
             # TODO: fix this
             print(">>>", str(violation.max()))
             return None
